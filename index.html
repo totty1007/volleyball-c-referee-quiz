@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C級審判 合格ノック｜6人制バレーボール審判資格 試験対策</title>
+<meta name="description" content="6人制バレーボールC級審判員資格の試験対策アプリ。演習問題と模擬試験で合格を目指す。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23F2B705'/%3E%3Cpath d='M50 4a46 46 0 0 1 40 68M50 4a46 46 0 0 0-40 68M10 72a46 46 0 0 0 80 0' stroke='%230F1F33' stroke-width='5' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Noto+Sans+JP:wght@400;500;700;900&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 100 100" width="34" height="34">
+          <circle cx="50" cy="50" r="46" fill="var(--volley-yellow)"/>
+          <path d="M50 4a46 46 0 0 1 40 68M50 4a46 46 0 0 0-40 68M10 72a46 46 0 0 0 80 0" stroke="var(--navy-deep)" stroke-width="5" fill="none"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <p class="brand-eyebrow">6人制バレーボール</p>
+        <h1>C級審判 合格ノック</h1>
+      </div>
+    </div>
+    <div class="score-chip" id="global-stat" aria-live="polite">
+      <span class="score-chip-label">正答率</span>
+      <span class="score-chip-value" id="global-stat-value">--%</span>
+    </div>
+  </div>
+  <div class="court-line" aria-hidden="true"></div>
+</header>
+
+<main id="app" class="app-main">
+  <!-- JS がここに画面を描画します -->
+  <p class="loading-fallback">読み込み中… 表示されない場合はページを再読み込みしてください。</p>
+</main>
+
+<footer class="app-footer">
+  <div class="court-line" aria-hidden="true"></div>
+  <p>本アプリは学習用の非公式教材です。出題内容は(公財)日本バレーボール協会「6人制バレーボール競技規則」を参考に作成していますが、規則は年度により改定されます。受験前に必ず最新の公式ルールブック・大会要項で確認してください。</p>
+  <p class="footer-meta">データ最終更新: <span id="footer-updated">-</span> ／ <a href="https://github.com/" target="_blank" rel="noopener" id="footer-repo-link">GitHubリポジトリ</a></p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
