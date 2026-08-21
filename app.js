@@ -10,14 +10,17 @@
   const STORAGE_STATS = "vcRef_stats_v1";      // カテゴリ別 正解/回答数
   const STORAGE_WRONG = "vcRef_wrong_v1";      // これまで間違えた問題ID
   const STORAGE_SIGNAL_BEST = "vcRef_signal_best_v1"; // シグナル認識の自己ベスト
+  const STORAGE_FOUL_BEST = "vcRef_foul_best_v1";     // 反則クイズの自己ベスト
   const EXAM_SIZE = 25;
   const EXAM_TIME_SEC = 20 * 60; // 20分
   const PRACTICE_LETTERS = ["A", "B", "C", "D", "E"];
   const SIGNAL_CHOICE_COUNT = 4;
+  const FOUL_CHOICE_COUNT = 4;
 
   let DATA = null;          // questions.json の内容
   let CAT_MAP = {};         // id -> name
   let SIGNALS = null;       // signals.json の内容(取得できない場合はnullのまま)
+  let FOULS = null;         // fouls.json の内容(取得できない場合はnullのまま)
 
   let state = {
     screen: "loading",
@@ -36,6 +39,14 @@
     index: 0,
     correctCount: 0,
     mistakes: [],    // signal のリスト
+  };
+
+  // 反則クイズ(反則一覧から自動生成)専用の状態
+  let foulState = {
+    queue: [],       // [{foul, direction, choiceFouls:[...], correctIndex}]
+    index: 0,
+    correctCount: 0,
+    mistakes: [],    // foul のリスト
   };
 
   // ---------------- ユーティリティ ----------------
@@ -110,6 +121,23 @@
       /* 保存できなくても結果表示は優先する */
     }
   }
+  function loadFoulBest() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_FOUL_BEST)) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function saveFoulBest(correctCount, total) {
+    try {
+      const prev = loadFoulBest();
+      if (!prev || correctCount > prev.correct || (correctCount === prev.correct && total > prev.total)) {
+        localStorage.setItem(STORAGE_FOUL_BEST, JSON.stringify({ correct: correctCount, total: total }));
+      }
+    } catch (e) {
+      /* 保存できなくても結果表示は優先する */
+    }
+  }
   function escapeHtml(value) {
     // questions.json は自分たちで管理するデータとはいえ、将来的な自動更新
     // (スクレイピング等)や表記ゆれ("<"や"&"を含む条文引用など)で
@@ -179,6 +207,21 @@
       .catch(() => {
         SIGNALS = null;
       });
+
+    // 反則一覧・反則クイズも任意機能。取得に失敗してもメインのクイズ機能には
+    // 影響させず、ホーム画面でそのカードを無効表示にするだけにする。
+    fetch("fouls.json", { cache: "no-store" })
+      .then(res => {
+        if (!res.ok) throw new Error("fouls.json の取得に失敗しました");
+        return res.json();
+      })
+      .then(json => {
+        FOULS = (json.fouls || []).slice();
+        if (state.screen === "home") renderHome();
+      })
+      .catch(() => {
+        FOULS = null;
+      });
   }
 
   // ---------------- ホーム画面 ----------------
@@ -192,6 +235,14 @@
       ? (signalBest
           ? `自己ベスト: ${signalBest.correct} / ${signalBest.total} 問。図を見て反則名を当てる本番形式の練習です。`
           : "図(ピクトグラム)を見て反則名を当てる、本番の視覚識別問題に近い練習モードです。")
+      : "読み込み中、またはこの端末では利用できません。";
+
+    const foulReady = Array.isArray(FOULS) && FOULS.length >= FOUL_CHOICE_COUNT;
+    const foulBest = loadFoulBest();
+    const foulCardBody = foulReady
+      ? (foulBest
+          ? `自己ベスト: ${foulBest.correct} / ${foulBest.total} 問。反則の名称と説明の一覧を見てから、一問一答で覚えられます。`
+          : `プレー中の反則を名称と説明でまとめた一覧(${FOULS.length}件)。一覧を見てから、そこから出題される一問一答クイズにも挑戦できます。`)
       : "読み込み中、またはこの端末では利用できません。";
 
     const catPills = DATA.categories.map(c => {
@@ -237,6 +288,11 @@
           <h2>シグナル認識</h2>
           <p>${signalCardBody}</p>
         </button>
+        <button class="mode-card" id="btn-fouls" ${foulReady ? "" : "disabled"}>
+          <span class="num">MODE 05</span>
+          <h2>反則一覧＆反則クイズ</h2>
+          <p>${foulCardBody}</p>
+        </button>
         <div class="mode-card" style="cursor:default;">
           <span class="num">STATUS</span>
           <h2>学習の記録</h2>
@@ -259,6 +315,9 @@
     document.getElementById("btn-review").addEventListener("click", startReview);
     if (signalReady) {
       document.getElementById("btn-signal").addEventListener("click", startSignalMode);
+    }
+    if (foulReady) {
+      document.getElementById("btn-fouls").addEventListener("click", renderFoulList);
     }
     document.getElementById("btn-practice").addEventListener("click", () => {
       window.scrollTo({ top: document.getElementById("cat-list").offsetTop - 100, behavior: "smooth" });
@@ -643,6 +702,174 @@
 
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
     document.getElementById("btn-signal-retry").addEventListener("click", startSignalMode);
+  }
+
+  // ---------------- 反則一覧＆反則クイズ ----------------
+  // fouls.json(反則の名称＋説明の一覧)を①そのまま読み物として表示する画面と、
+  // ②その一覧データから自動生成する一問一答クイズの2つを提供する。
+  // クイズ問題はquestions.jsonのような静的データではなく、fouls.jsonの
+  // name/descriptionから実行時に組み立てる(シグナル認識モードと同じ考え方)。
+  function renderFoulList() {
+    state.screen = "foulList";
+    const cardsHtml = FOULS.map(f => `
+      <div class="mistake-item foul-card">
+        <p class="mi-q">${escapeHtml(f.name)}</p>
+        <p>${escapeHtml(f.description)}</p>
+      </div>
+    `).join("");
+
+    APP.innerHTML = `
+      <p class="section-title">反則一覧(${FOULS.length}件)</p>
+      <div class="notice-banner">
+        プレー中に起きる主な反則を、名称と説明でまとめた一覧です。questions.jsonの出題・解説と同じ内容を
+        再編集したもので、新しい未確認情報は加えていません。下の「反則クイズに挑戦」から、この一覧をもとに
+        した一問一答クイズにも挑戦できます。
+      </div>
+      <div class="mistake-list">${cardsHtml}</div>
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-start-foul-quiz">反則クイズに挑戦</button>
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    document.getElementById("btn-start-foul-quiz").addEventListener("click", startFoulQuiz);
+  }
+
+  function buildFoulQuestion(foul, pool) {
+    const direction = Math.random() < 0.5 ? "toDesc" : "toName";
+    const others = shuffle(pool.filter(f => f.id !== foul.id)).slice(0, FOUL_CHOICE_COUNT - 1);
+    const choiceFouls = shuffle([foul, ...others]);
+    const correctIndex = choiceFouls.findIndex(f => f.id === foul.id);
+    return { foul, direction, choiceFouls, correctIndex };
+  }
+
+  function startFoulQuiz() {
+    if (!Array.isArray(FOULS) || FOULS.length < FOUL_CHOICE_COUNT) return;
+    stopTimer();
+    const queue = shuffle(FOULS).map(f => buildFoulQuestion(f, FOULS));
+    foulState = { queue, index: 0, correctCount: 0, mistakes: [] };
+    state.screen = "foulQuiz";
+    renderFoulQuestion();
+  }
+
+  function renderFoulQuestion() {
+    const item = foulState.queue[foulState.index];
+    const total = foulState.queue.length;
+    const pct = Math.round((foulState.index / total) * 100);
+
+    let questionText, choicesHtml;
+    if (item.direction === "toDesc") {
+      questionText = `「${escapeHtml(item.foul.name)}」の説明として正しいものはどれか。`;
+      choicesHtml = item.choiceFouls.map((f, i) => `
+        <button class="choice-btn" data-index="${i}">
+          <span class="letter">${PRACTICE_LETTERS[i]}</span>
+          <span>${escapeHtml(f.description)}</span>
+        </button>
+      `).join("");
+    } else {
+      questionText = `次の説明にあたる反則の名称として正しいものはどれか。<br>「${escapeHtml(item.foul.description)}」`;
+      choicesHtml = item.choiceFouls.map((f, i) => `
+        <button class="choice-btn" data-index="${i}">
+          <span class="letter">${PRACTICE_LETTERS[i]}</span>
+          <span>${escapeHtml(f.name)}</span>
+        </button>
+      `).join("");
+    }
+
+    APP.innerHTML = `
+      <div class="quiz-topbar">
+        <span>反則クイズ｜問 ${foulState.index + 1} / ${total}</span>
+        <span class="quiz-progress-track"><span class="quiz-progress-fill" style="width:${pct}%"></span></span>
+      </div>
+      <div class="q-card">
+        <span class="q-cat-tag">プレー・反則</span>
+        <p class="q-text">${questionText}</p>
+        <div class="choices" id="choices">${choicesHtml}</div>
+        <div id="explanation-slot"></div>
+      </div>
+      <div class="quiz-nav">
+        <button class="btn btn-ghost" id="btn-quit">中断してホームへ</button>
+        <button class="btn btn-primary hidden" id="btn-next">${foulState.index + 1 < total ? "次の問題へ" : "結果を見る"}</button>
+      </div>
+    `;
+
+    document.getElementById("btn-quit").addEventListener("click", renderHome);
+    document.querySelectorAll("#choices > button").forEach(btn => {
+      btn.addEventListener("click", () => onChooseFoul(parseInt(btn.dataset.index, 10)));
+    });
+  }
+
+  function onChooseFoul(chosenIndex) {
+    const item = foulState.queue[foulState.index];
+    const correct = chosenIndex === item.correctIndex;
+    const buttons = document.querySelectorAll("#choices > button");
+
+    buttons.forEach((btn, i) => {
+      btn.disabled = true;
+      if (i === item.correctIndex) btn.classList.add("correct");
+      else if (i === chosenIndex) btn.classList.add("incorrect");
+    });
+
+    if (correct) {
+      foulState.correctCount += 1;
+    } else {
+      foulState.mistakes.push(item.foul);
+    }
+
+    document.getElementById("explanation-slot").innerHTML = `
+      <div class="explanation ${correct ? "" : "wrong-tone"}">
+        <strong>${correct ? "正解です。" : "不正解。"}</strong>
+        「${escapeHtml(item.foul.name)}」: ${escapeHtml(item.foul.description)}
+      </div>
+    `;
+
+    document.getElementById("btn-next").classList.remove("hidden");
+    document.getElementById("btn-next").onclick = () => {
+      if (foulState.index + 1 < foulState.queue.length) {
+        foulState.index += 1;
+        renderFoulQuestion();
+      } else {
+        finishFoulRound();
+      }
+    };
+  }
+
+  function finishFoulRound() {
+    state.screen = "foulResult";
+    const total = foulState.queue.length;
+    const correctCount = foulState.correctCount;
+    const pct = total ? Math.round((correctCount / total) * 100) : 0;
+    saveFoulBest(correctCount, total);
+
+    const mistakeHtml = foulState.mistakes.length === 0
+      ? `<p style="color:var(--muted)">間違えた反則はありませんでした。お見事です。</p>`
+      : foulState.mistakes.map(f => `
+          <div class="mistake-item">
+            <p class="mi-q">${escapeHtml(f.name)}</p>
+            <p style="color:#4B5A6A;font-size:13px;">${escapeHtml(f.description)}</p>
+          </div>
+        `).join("");
+
+    APP.innerHTML = `
+      <div class="result-board">
+        <div class="result-score">${correctCount}<span> / ${total} 問正解</span></div>
+        <p class="result-sub">正答率 ${pct}%</p>
+      </div>
+
+      <p class="section-title">間違えた反則(${foulState.mistakes.length}件)</p>
+      <div class="mistake-list">${mistakeHtml}</div>
+
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-foul-retry">もう一度挑戦する</button>
+        <button class="btn btn-ghost" id="btn-back-list">反則一覧を見る</button>
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    document.getElementById("btn-back-list").addEventListener("click", renderFoulList);
+    document.getElementById("btn-foul-retry").addEventListener("click", startFoulQuiz);
   }
 
   // ---------------- 起動 ----------------
