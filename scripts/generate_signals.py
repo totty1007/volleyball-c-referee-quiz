@@ -19,19 +19,30 @@ RED = "#D1495B"
 WOOD = "#C98A4B"
 
 def body(role_label):
-    """共通の棒人間本体(頭・肩・胴・脚)と役職ラベルを返す。
-    シルエットを塗りつぶし+肩幅バーにすることで、細い針金人間より視認性を
-    高めている(小さいサムネイル表示でも判別しやすくするための改善)。"""
+    """共通の人型本体(頭・肩・胴・脚)と役職ラベルを返す。
+    棒人間ではなく、肩幅のある台形の胴体(シャツのシルエット)にすることで、
+    「人がジェスチャーをしている」ことが一目で伝わるようにしている。"""
     label = f'<text x="100" y="256" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="700" fill="{INK}">{role_label}</text>' if role_label else ""
-    return f'''<circle cx="100" cy="38" r="24" fill="{INK}"/>
-<rect x="66" y="86" width="68" height="16" rx="8" fill="{INK}"/>
-<line x1="100" y1="62" x2="100" y2="150" stroke="{INK}" stroke-width="16" stroke-linecap="round"/>
-<line x1="100" y1="150" x2="78" y2="230" stroke="{INK}" stroke-width="13" stroke-linecap="round"/>
-<line x1="100" y1="150" x2="122" y2="230" stroke="{INK}" stroke-width="13" stroke-linecap="round"/>
+    return f'''<circle cx="100" cy="36" r="24" fill="{INK}"/>
+<path d="M64,84 L136,84 L124,152 L76,152 Z" fill="{INK}"/>
+<line x1="100" y1="150" x2="78" y2="230" stroke="{INK}" stroke-width="14" stroke-linecap="round"/>
+<line x1="100" y1="150" x2="122" y2="230" stroke="{INK}" stroke-width="14" stroke-linecap="round"/>
 {label}'''
 
-def arm(x1, y1, x2, y2):
-    return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{INK}" stroke-width="13" stroke-linecap="round"/>'
+def arm(x1, y1, x2, y2, bend=20):
+    """肩(x1,y1)から手(x2,y2)への腕。直線ではなく、体の外側方向にわずかに
+    肘を張り出させた2本のセグメントで描くことで、実際の腕の動きに近い
+    自然なポーズに見えるようにしている(棒人間の"まっすぐな線"問題への対応)。"""
+    import math
+    dx, dy = x2 - x1, y2 - y1
+    length = math.hypot(dx, dy) or 1
+    px, py = -dy / length, dx / length
+    sign = 1 if (x1 - 100) >= 0 else -1
+    if px * sign < 0:
+        px, py = -px, -py
+    mx, my = (x1 + x2) / 2 + px * bend, (y1 + y2) / 2 + py * bend
+    return (f'<line x1="{x1}" y1="{y1}" x2="{mx:.1f}" y2="{my:.1f}" stroke="{INK}" stroke-width="14" stroke-linecap="round"/>'
+            f'<line x1="{mx:.1f}" y1="{my:.1f}" x2="{x2}" y2="{y2}" stroke="{INK}" stroke-width="14" stroke-linecap="round"/>')
 
 def hand_circle(x, y, r=13, fill=ACCENT):
     return f'<circle cx="{x}" cy="{y}" r="{r}" fill="{fill}"/>'
@@ -120,7 +131,7 @@ add("sig03", "コートチェンジ", "審判",
     "左腕は前から後ろへ、右腕は後ろから前へ弧を描く(アニメーションで動きを再現)")
 
 add("sig04", "タイムアウト", "審判",
-    arm(78, 95, 78, 15) + hand_bar(78, 8, 34, 8),
+    arm(78, 95, 58, 45) + hand_bar(58, 30, 34, 10),
     "片方の手を垂直に立て、その上に反対側の手のひらをのせてT字を作る")
 
 add("sig05", "選手交代(サブスティチューション)", "審判",
@@ -148,8 +159,8 @@ add("sig09", "失格", "審判",
     "失格としてイエローカードとレッドカードを別々に示す")
 
 add("sig10", "セット(ゲーム)の終了", "審判",
-    f'<line x1="60" y1="115" x2="140" y2="160" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>' +
-    f'<line x1="140" y1="115" x2="60" y2="160" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>',
+    f'<line x1="68" y1="90" x2="132" y2="132" stroke="{ACCENT}" stroke-width="13" stroke-linecap="round"/>' +
+    f'<line x1="132" y1="90" x2="68" y2="132" stroke="{ACCENT}" stroke-width="13" stroke-linecap="round"/>',
     "両腕を胸の前で交差する")
 
 add("sig11", "サービスでボールをヒットしなかった、またはトスをしないで打った反則", "審判",
@@ -211,7 +222,7 @@ add("sig22", "アタックヒットの反則", "審判",
     "手のひらを広げて上方に伸ばし、前腕を振り下ろす(アニメーションで動きを再現)")
 
 add("sig23", "ペネトレーションフォルト", "審判",
-    arm(78, 100, 40, 210) + hand_circle(40, 210) + floor_line(222, 15, 75),
+    arm(70, 95, 20, 190) + hand_circle(20, 190) + floor_line(205, 2, 58),
     "センターラインまたは該当するラインを指す")
 
 add("sig24", "ダブルフォルトおよびリプレイ", "審判",
@@ -248,8 +259,8 @@ add("sig30", "ボールのアンテナ外通過・フットフォルト等(ラ�
     "アンテナまたはラインを指し示し、フラッグを頭上で左右に振る(アニメーションで動きを再現)")
 
 add("sig31", "判定不能(ラインジャッジ)", "線審",
-    f'<line x1="60" y1="115" x2="140" y2="160" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>' +
-    f'<line x1="140" y1="115" x2="60" y2="160" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>',
+    f'<line x1="68" y1="90" x2="132" y2="132" stroke="{ACCENT}" stroke-width="13" stroke-linecap="round"/>' +
+    f'<line x1="132" y1="90" x2="68" y2="132" stroke="{ACCENT}" stroke-width="13" stroke-linecap="round"/>',
     "両腕を胸の前で交差する")
 
 out_path = Path(__file__).resolve().parent.parent / "signals.json"
