@@ -82,6 +82,13 @@ def flag(x, y, angle=0, color=WOOD):
 def wave_lines(x, y):
     return "".join(f'<path d="M{x-10},{y-8+i*10} q10,-8 20,0" fill="none" stroke="{INK}" stroke-width="3"/>' for i in range(3))
 
+def anim_g(content, cls, origin_x, origin_y):
+    """動きそのものが意味を持つ一部のシグナルだけ、CSSアニメーション用の
+    グループでラップする(対応する @keyframes は style.css 側で定義)。
+    transform-origin をSVGのユーザー単位で指定するため、対応するクラス名は
+    style.css の transform-origin ともセットで管理すること。"""
+    return f'<g class="{cls}" style="transform-origin:{origin_x}px {origin_y}px">{content}</g>'
+
 def svg_wrap(inner, role_label):
     return (f'<svg viewBox="0 0 220 265" xmlns="http://www.w3.org/2000/svg">{ARROWHEAD_DEF}'
             f'{body(role_label)}{inner}</svg>')
@@ -104,18 +111,21 @@ add("sig02", "サービスを行うチーム", "審判",
     "サービスをする側の腕を横に上げる")
 
 add("sig03", "コートチェンジ", "審判",
-    curved_arrow(78, 130, 26, 200, 20) + curved_arrow(122, 130, 26, -20, 160),
-    "左腕は前から後ろへ、右腕は後ろから前へ弧を描く")
+    anim_g(arm(78, 95, 42, 95) + hand_circle(42, 95), "anim-swing-l", 78, 95) +
+    anim_g(arm(122, 95, 158, 95) + hand_circle(158, 95), "anim-swing-r", 122, 95),
+    "左腕は前から後ろへ、右腕は後ろから前へ弧を描く(アニメーションで動きを再現)")
 
 add("sig04", "タイムアウト", "審判",
     arm(78, 95, 78, 15) + hand_bar(78, 8, 34, 8),
     "片方の手を垂直に立て、その上に反対側の手のひらをのせてT字を作る")
 
 add("sig05", "選手交代(サブスティチューション)", "審判",
-    f'<line x1="90" y1="95" x2="110" y2="130" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>' +
-    f'<line x1="110" y1="95" x2="90" y2="130" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>' +
-    curved_arrow(100, 112, 28, -30, 300),
-    "両腕の前腕部を、互いに回転させる")
+    anim_g(
+        f'<line x1="90" y1="95" x2="110" y2="130" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>' +
+        f'<line x1="110" y1="95" x2="90" y2="130" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>' +
+        curved_arrow(100, 112, 28, -30, 300),
+        "anim-spin", 100, 112),
+    "両腕の前腕部を、互いに回転させる(アニメーションで動きを再現)")
 
 add("sig06", "軽度の不法な行為への警告(イエローカード)", "審判",
     arm(122, 95, 122, 20) + card(122, 10, YELLOW),
@@ -153,8 +163,8 @@ add("sig13", "ブロックの反則またはスクリーン", "審判",
     "両方の手のひらを前方に向け、真上に上げる")
 
 add("sig14", "ポジションまたはローテーションの反則", "審判",
-    arm(122, 95, 160, 95) + curved_arrow(160, 95, 16, 0, 340),
-    "人差し指で円を描く")
+    arm(122, 95, 160, 95) + anim_g(curved_arrow(160, 95, 16, 0, 340), "anim-spin", 160, 95),
+    "人差し指で円を描く(アニメーションで動きを再現)")
 
 add("sig15", "ボール『イン』", "審判",
     arm(122, 100, 150, 235) + floor_line(245, 120, 180),
@@ -171,8 +181,9 @@ add("sig16", "ボール『アウト』", "審判",
 
 add("sig17", "キャッチ(ボールの保持)", "審判",
     arm(78, 100, 45, 130) + hand_bar(38, 138, 26, 8, -60) +
-    f'<path d="M45,110 L45,95" stroke="{INK}" stroke-width="3" fill="none"/><path d="M40,100 L45,90 L50,100 Z" fill="{INK}"/>',
-    "片方の手のひらを上に向け、前腕をゆっくり持ち上げる")
+    anim_g(f'<path d="M45,110 L45,95" stroke="{INK}" stroke-width="3" fill="none"/><path d="M40,100 L45,90 L50,100 Z" fill="{INK}"/>',
+           "anim-lift", 45, 100),
+    "片方の手のひらを上に向け、前腕をゆっくり持ち上げる(アニメーションで動きを再現)")
 
 add("sig18", "ダブルコンタクト", "審判",
     arm(122, 95, 122, 25) + fingers(122, 18, 2, spread=14, angle=-90),
@@ -191,8 +202,9 @@ add("sig21", "オーバーネット", "審判",
     "手のひらを下に向け、ネット上方にかざす")
 
 add("sig22", "アタックヒットの反則", "審判",
-    arm(122, 90, 150, 30) + hand_bar(155, 22, 26, 8, -30) + curved_arrow(140, 60, 30, -40, 60),
-    "手のひらを広げて上方に伸ばし、前腕を振り下ろす")
+    anim_g(arm(122, 90, 150, 30) + hand_bar(155, 22, 26, 8, -30), "anim-chop", 122, 90) +
+    curved_arrow(140, 60, 30, -40, 60),
+    "手のひらを広げて上方に伸ばし、前腕を振り下ろす(アニメーションで動きを再現)")
 
 add("sig23", "ペネトレーションフォルト", "審判",
     arm(78, 100, 95, 235) + floor_line(245, 60, 140),
@@ -228,8 +240,8 @@ add("sig29", "ボールコンタクト(ラインジャッジ)", "線審",
     "フラッグを立て、他方の手のひらをフラッグの先端にのせる")
 
 add("sig30", "ボールのアンテナ外通過・フットフォルト等(ラインジャッジ)", "線審",
-    arm(122, 95, 122, 40) + flag(122, 40) + wave_lines(150, 40),
-    "アンテナまたはラインを指し示し、フラッグを頭上で左右に振る")
+    arm(122, 95, 122, 40) + anim_g(flag(122, 40), "anim-wave", 122, 40) + wave_lines(150, 40),
+    "アンテナまたはラインを指し示し、フラッグを頭上で左右に振る(アニメーションで動きを再現)")
 
 add("sig31", "判定不能(ラインジャッジ)", "線審",
     f'<line x1="60" y1="115" x2="140" y2="160" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>' +

@@ -171,6 +171,7 @@ button:focus-visible{
   .mode-card{transition:none;}
   .mode-card:hover{transform:none;}
   .quiz-progress-fill{transition:none;}
+  .anim-swing-l,.anim-swing-r,.anim-spin,.anim-lift,.anim-chop,.anim-wave{animation:none !important;}
 }
 
 /* ---------- Home: mode cards ---------- */
@@ -400,6 +401,25 @@ button:focus-visible{
 .signal-thumb-btn:disabled{cursor:default;}
 .signal-thumb-btn.correct{background:#E7F4EC; border-color:var(--correct);}
 .signal-thumb-btn.incorrect{background:#FBEAEC; border-color:var(--incorrect);}
+
+/* 動きそのものが意味を持つ一部のシグナル(コートチェンジ・選手交代・
+   ポジション反則・キャッチ・アタック反則・線審のフラッグ振り)だけ、
+   実際の腕やフラッグの動きをアニメーションで再現する。
+   transform-origin は scripts/generate_signals.py の anim_g() が
+   インラインstyleで指定するので、ここでは @keyframes とループ設定のみ行う。 */
+@keyframes sigSwingL{0%,100%{transform:rotate(20deg);} 50%{transform:rotate(-20deg);}}
+@keyframes sigSwingR{0%,100%{transform:rotate(-20deg);} 50%{transform:rotate(20deg);}}
+@keyframes sigSpin{to{transform:rotate(360deg);}}
+@keyframes sigLift{0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);}}
+@keyframes sigChop{0%,15%{transform:rotate(0deg);} 40%{transform:rotate(30deg);} 100%{transform:rotate(0deg);}}
+@keyframes sigWave{0%,100%{transform:rotate(-16deg);} 50%{transform:rotate(16deg);}}
+
+.anim-swing-l{animation:sigSwingL 1.6s ease-in-out infinite;}
+.anim-swing-r{animation:sigSwingR 1.6s ease-in-out infinite;}
+.anim-spin{animation:sigSpin 2s linear infinite;}
+.anim-lift{animation:sigLift 1.4s ease-in-out infinite;}
+.anim-chop{animation:sigChop 1.6s ease-in-out infinite;}
+.anim-wave{animation:sigWave 1s ease-in-out infinite;}
 
 .explanation{
   margin-top:18px;
