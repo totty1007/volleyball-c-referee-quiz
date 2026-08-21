@@ -13,29 +13,33 @@ import json
 from pathlib import Path
 
 INK = "#0F1F33"
+ACCENT = "#3E7CB1"   # 手・指など「動きの主役」を強調するための差し色(--volley-blue)
 YELLOW = "#F2B705"
 RED = "#D1495B"
 WOOD = "#C98A4B"
 
 def body(role_label):
-    """共通の棒人間本体(頭・胴・脚)と役職ラベルを返す。"""
+    """共通の棒人間本体(頭・肩・胴・脚)と役職ラベルを返す。
+    シルエットを塗りつぶし+肩幅バーにすることで、細い針金人間より視認性を
+    高めている(小さいサムネイル表示でも判別しやすくするための改善)。"""
     label = f'<text x="100" y="256" text-anchor="middle" font-family="sans-serif" font-size="15" font-weight="700" fill="{INK}">{role_label}</text>' if role_label else ""
-    return f'''<circle cx="100" cy="40" r="22" fill="none" stroke="{INK}" stroke-width="6"/>
-<line x1="100" y1="62" x2="100" y2="150" stroke="{INK}" stroke-width="14" stroke-linecap="round"/>
-<line x1="100" y1="150" x2="78" y2="230" stroke="{INK}" stroke-width="12" stroke-linecap="round"/>
-<line x1="100" y1="150" x2="122" y2="230" stroke="{INK}" stroke-width="12" stroke-linecap="round"/>
+    return f'''<circle cx="100" cy="38" r="24" fill="{INK}"/>
+<rect x="66" y="86" width="68" height="16" rx="8" fill="{INK}"/>
+<line x1="100" y1="62" x2="100" y2="150" stroke="{INK}" stroke-width="16" stroke-linecap="round"/>
+<line x1="100" y1="150" x2="78" y2="230" stroke="{INK}" stroke-width="13" stroke-linecap="round"/>
+<line x1="100" y1="150" x2="122" y2="230" stroke="{INK}" stroke-width="13" stroke-linecap="round"/>
 {label}'''
 
 def arm(x1, y1, x2, y2):
-    return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>'
+    return f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{INK}" stroke-width="13" stroke-linecap="round"/>'
 
-def hand_circle(x, y, r=11, fill=INK):
+def hand_circle(x, y, r=13, fill=ACCENT):
     return f'<circle cx="{x}" cy="{y}" r="{r}" fill="{fill}"/>'
 
-def hand_bar(x, y, w=26, h=8, angle=0, fill=INK):
-    return f'<rect x="{x-w/2}" y="{y-h/2}" width="{w}" height="{h}" rx="3" fill="{fill}" transform="rotate({angle} {x} {y})"/>'
+def hand_bar(x, y, w=30, h=11, angle=0, fill=ACCENT):
+    return f'<rect x="{x-w/2}" y="{y-h/2}" width="{w}" height="{h}" rx="4" fill="{fill}" transform="rotate({angle} {x} {y})"/>'
 
-def fingers(x, y, count, spread=10, length=22, angle=-90):
+def fingers(x, y, count, spread=11, length=24, angle=-90):
     import math
     parts = []
     start = x - spread * (count - 1) / 2
@@ -44,8 +48,8 @@ def fingers(x, y, count, spread=10, length=22, angle=-90):
         rad = math.radians(angle)
         fx2 = fx + length * math.cos(rad)
         fy2 = y + length * math.sin(rad)
-        parts.append(f'<line x1="{fx}" y1="{y}" x2="{fx2}" y2="{fy2}" stroke="{INK}" stroke-width="4" stroke-linecap="round"/>')
-    parts.append(hand_circle(x, y, 8))
+        parts.append(f'<line x1="{fx}" y1="{y}" x2="{fx2}" y2="{fy2}" stroke="{ACCENT}" stroke-width="6" stroke-linecap="round"/>')
+    parts.append(hand_circle(x, y, 10))
     return "".join(parts)
 
 def card(x, y, color, w=20, h=28, angle=0):
@@ -153,8 +157,8 @@ add("sig11", "サービスでボールをヒットしなかった、またはト
     "腕を前方に伸ばしたまま、手のひらを上に向けて上げる")
 
 add("sig12", "ディレイインサービス(サービス時8秒ルールの反則)", "審判",
-    arm(78, 95, 78, 20) + fingers(78, 15, 4, angle=-100) +
-    arm(122, 95, 122, 20) + fingers(122, 15, 4, angle=-80),
+    arm(78, 95, 45, 35) + fingers(38, 25, 4, angle=-110) +
+    arm(122, 95, 155, 35) + fingers(162, 25, 4, angle=-70),
     "指を8本、広げて上げる")
 
 add("sig13", "ブロックの反則またはスクリーン", "審判",
@@ -186,11 +190,11 @@ add("sig17", "キャッチ(ボールの保持)", "審判",
     "片方の手のひらを上に向け、前腕をゆっくり持ち上げる(アニメーションで動きを再現)")
 
 add("sig18", "ダブルコンタクト", "審判",
-    arm(122, 95, 122, 25) + fingers(122, 18, 2, spread=14, angle=-90),
+    arm(122, 95, 162, 40) + fingers(168, 28, 2, spread=16, angle=-70),
     "指を2本伸ばし、その手を上げる")
 
 add("sig19", "フォアヒット", "審判",
-    arm(122, 95, 122, 25) + fingers(122, 18, 4, angle=-90),
+    arm(122, 95, 165, 40) + fingers(172, 28, 4, angle=-70),
     "指を4本伸ばし、その手を上げる")
 
 add("sig20", "選手のタッチネット", "審判",
@@ -207,12 +211,12 @@ add("sig22", "アタックヒットの反則", "審判",
     "手のひらを広げて上方に伸ばし、前腕を振り下ろす(アニメーションで動きを再現)")
 
 add("sig23", "ペネトレーションフォルト", "審判",
-    arm(78, 100, 95, 235) + floor_line(245, 60, 140),
+    arm(78, 100, 40, 210) + hand_circle(40, 210) + floor_line(222, 15, 75),
     "センターラインまたは該当するラインを指す")
 
 add("sig24", "ダブルフォルトおよびリプレイ", "審判",
-    arm(78, 95, 78, 20) + hand_circle(78, 14) + f'<rect x="72" y="0" width="8" height="16" rx="4" fill="{INK}"/>' +
-    arm(122, 95, 122, 20) + hand_circle(122, 14) + f'<rect x="140" y="0" width="8" height="16" rx="4" fill="{INK}" transform="rotate(180 144 8)"/>',
+    arm(78, 95, 52, 30) + hand_circle(52, 30) + f'<rect x="45" y="8" width="12" height="22" rx="5" fill="{ACCENT}"/>' +
+    arm(122, 95, 148, 30) + hand_circle(148, 30) + f'<rect x="151" y="8" width="12" height="22" rx="5" fill="{ACCENT}"/>',
     "両方の親指を立て、両腕を上げる")
 
 add("sig25", "ボールコンタクト(ワンタッチ)", "審判",
