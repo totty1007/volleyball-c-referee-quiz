@@ -373,6 +373,34 @@ button:focus-visible{
 .choice-btn.incorrect{background:#FBEAEC; border-color:var(--incorrect);}
 .choice-btn.incorrect .letter{color:var(--incorrect);}
 
+/* ---------- シグナル認識モード ---------- */
+.signal-figure-wrap{
+  max-width:220px;
+  margin:0 auto 18px;
+  background:#FCFAF4;
+  border:1.5px solid #DDD5C2;
+  border-radius:10px;
+  padding:10px;
+}
+.signal-figure-wrap svg{display:block; width:100%; height:auto;}
+.signal-thumb-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.signal-thumb-btn{
+  border:1.5px solid #DDD5C2;
+  background:#FCFAF4;
+  border-radius:10px;
+  padding:8px;
+  cursor:pointer;
+}
+.signal-thumb-btn svg{display:block; width:100%; height:auto;}
+.signal-thumb-btn:hover:not(:disabled){border-color:var(--volley-blue);}
+.signal-thumb-btn:disabled{cursor:default;}
+.signal-thumb-btn.correct{background:#E7F4EC; border-color:var(--correct);}
+.signal-thumb-btn.incorrect{background:#FBEAEC; border-color:var(--incorrect);}
+
 .explanation{
   margin-top:18px;
   padding:14px 16px;

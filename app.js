@@ -9,12 +9,15 @@
   const APP = document.getElementById("app");
   const STORAGE_STATS = "vcRef_stats_v1";      // カテゴリ別 正解/回答数
   const STORAGE_WRONG = "vcRef_wrong_v1";      // これまで間違えた問題ID
+  const STORAGE_SIGNAL_BEST = "vcRef_signal_best_v1"; // シグナル認識の自己ベスト
   const EXAM_SIZE = 25;
   const EXAM_TIME_SEC = 20 * 60; // 20分
   const PRACTICE_LETTERS = ["A", "B", "C", "D", "E"];
+  const SIGNAL_CHOICE_COUNT = 4;
 
   let DATA = null;          // questions.json の内容
   let CAT_MAP = {};         // id -> name
+  let SIGNALS = null;       // signals.json の内容(取得できない場合はnullのまま)
 
   let state = {
     screen: "loading",
@@ -25,6 +28,14 @@
     answers: [],            // {id, correct, chosenIndex}
     timerId: null,
     remainingSec: 0,
+  };
+
+  // シグナル認識モード専用の状態(通常のクイズとはデータ形状が違うため分離する)
+  let sigState = {
+    queue: [],       // [{signal, direction, choices:[...], correctIndex}]
+    index: 0,
+    correctCount: 0,
+    mistakes: [],    // signal のリスト
   };
 
   // ---------------- ユーティリティ ----------------
@@ -82,6 +93,23 @@
     }
     saveWrong(wrong);
   }
+  function loadSignalBest() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_SIGNAL_BEST)) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+  function saveSignalBest(correctCount, total) {
+    try {
+      const prev = loadSignalBest();
+      if (!prev || correctCount > prev.correct || (correctCount === prev.correct && total > prev.total)) {
+        localStorage.setItem(STORAGE_SIGNAL_BEST, JSON.stringify({ correct: correctCount, total: total }));
+      }
+    } catch (e) {
+      /* 保存できなくても結果表示は優先する */
+    }
+  }
   function escapeHtml(value) {
     // questions.json は自分たちで管理するデータとはいえ、将来的な自動更新
     // (スクレイピング等)や表記ゆれ("<"や"&"を含む条文引用など)で
@@ -136,6 +164,21 @@
           <p style="font-size:12px;color:var(--muted)">${err.message}</p>
         </div>`;
       });
+
+    // シグナル認識モードは任意機能。取得に失敗してもメインのクイズ機能には
+    // 影響させず、ホーム画面でそのモードのカードを無効表示にするだけにする。
+    fetch("signals.json", { cache: "no-store" })
+      .then(res => {
+        if (!res.ok) throw new Error("signals.json の取得に失敗しました");
+        return res.json();
+      })
+      .then(json => {
+        SIGNALS = json.signals || [];
+        if (state.screen === "home") renderHome();
+      })
+      .catch(() => {
+        SIGNALS = null;
+      });
   }
 
   // ---------------- ホーム画面 ----------------
@@ -143,6 +186,13 @@
     state.screen = "home";
     const stats = loadStats();
     const wrongCount = loadWrong().size;
+    const signalBest = loadSignalBest();
+    const signalReady = Array.isArray(SIGNALS) && SIGNALS.length > 0;
+    const signalCardBody = signalReady
+      ? (signalBest
+          ? `自己ベスト: ${signalBest.correct} / ${signalBest.total} 問。図を見て反則名を当てる本番形式の練習です。`
+          : "図(ピクトグラム)を見て反則名を当てる、本番の視覚識別問題に近い練習モードです。")
+      : "読み込み中、またはこの端末では利用できません。";
 
     const catPills = DATA.categories.map(c => {
       const n = DATA.questions.filter(q => q.category === c.id).length;
@@ -164,7 +214,7 @@
 
     APP.innerHTML = `
       <div class="notice-banner">
-        本アプリは個人が作成した<strong>非公式の学習教材</strong>です。(公財)日本バレーボール協会・神奈川県バレーボール協会・相模原バレーボール協会とは無関係です。掲載内容は参考情報であり、正誤の最終確認は必ず最新の公式ルールブック・受験要項で行ってください。
+        本アプリは個人が作成した<strong>非公式の学習教材</strong>です。(公財)日本バレーボール協会・神奈川県バレーボール協会・相模原バレーボール協会とは無関係です。掲載内容は参考情報であり、正誤の最終確認は必ず最新の公式ルールブック・受験要項で行ってください。「シグナル認識」の図は、規則書の動作説明文をもとに独自に描き起こしたオリジナルの簡易図であり、公式のイラストそのものではありません。実際の細かい所作は必ず公式の審判実技マニュアルの図で確認してください。
       </div>
       <div class="mode-grid">
         <button class="mode-card primary" id="btn-exam">
@@ -181,6 +231,11 @@
           <span class="num">MODE 03</span>
           <h2>苦手問題の復習</h2>
           <p>${wrongCount > 0 ? `過去に間違えた ${wrongCount} 問だけを出題します。` : "間違えた問題はまだありません。"}</p>
+        </button>
+        <button class="mode-card" id="btn-signal" ${signalReady ? "" : "disabled"}>
+          <span class="num">MODE 04</span>
+          <h2>シグナル認識</h2>
+          <p>${signalCardBody}</p>
         </button>
         <div class="mode-card" style="cursor:default;">
           <span class="num">STATUS</span>
@@ -202,6 +257,9 @@
 
     document.getElementById("btn-exam").addEventListener("click", startExam);
     document.getElementById("btn-review").addEventListener("click", startReview);
+    if (signalReady) {
+      document.getElementById("btn-signal").addEventListener("click", startSignalMode);
+    }
     document.getElementById("btn-practice").addEventListener("click", () => {
       window.scrollTo({ top: document.getElementById("cat-list").offsetTop - 100, behavior: "smooth" });
     });
@@ -440,6 +498,151 @@
       const pool = DATA.questions.filter(q => ids.has(q.id));
       beginQuiz("review", shuffle(pool));
     });
+  }
+
+  // ---------------- シグナル認識モード ----------------
+  // 通常のクイズ(questions.json)とはデータ形状が違うため、専用の画面と
+  // 状態(sigState)を用意する。localStorageへの正誤記録(recordAnswer)は
+  // カテゴリ別正答率の意味を薄めてしまうため行わず、自己ベストのみ保存する。
+  function buildSignalQuestion(signal, pool) {
+    const direction = Math.random() < 0.5 ? "toName" : "toPicto";
+    const others = shuffle(pool.filter(s => s.id !== signal.id)).slice(0, SIGNAL_CHOICE_COUNT - 1);
+    const choiceSignals = shuffle([signal, ...others]);
+    const correctIndex = choiceSignals.findIndex(s => s.id === signal.id);
+    return { signal, direction, choiceSignals, correctIndex };
+  }
+
+  function startSignalMode() {
+    if (!Array.isArray(SIGNALS) || SIGNALS.length < SIGNAL_CHOICE_COUNT) return;
+    stopTimer();
+    const queue = shuffle(SIGNALS).map(sig => buildSignalQuestion(sig, SIGNALS));
+    sigState = { queue, index: 0, correctCount: 0, mistakes: [] };
+    state.screen = "signalQuiz";
+    renderSignalQuestion();
+  }
+
+  function renderSignalQuestion() {
+    // 注意: item.signal.svg は escapeHtml() を通さずそのまま挿入する。
+    // signals.json はユーザー入力ではなく、ビルド時のスクリプト(_gen_signals.py)
+    // が生成した信頼できるSVGマークアップであり、意図的にHTMLとして描画する。
+    const item = sigState.queue[sigState.index];
+    const total = sigState.queue.length;
+    const pct = Math.round((sigState.index / total) * 100);
+
+    let bodyHtml;
+    if (item.direction === "toName") {
+      const choicesHtml = item.choiceSignals.map((s, i) => `
+        <button class="choice-btn" data-index="${i}">
+          <span class="letter">${PRACTICE_LETTERS[i]}</span>
+          <span>${escapeHtml(s.name)}</span>
+        </button>
+      `).join("");
+      bodyHtml = `
+        <p class="q-text">このシグナルが示す反則・合図は次のうちどれか。</p>
+        <div class="signal-figure-wrap">${item.signal.svg}</div>
+        <div class="choices" id="choices">${choicesHtml}</div>
+      `;
+    } else {
+      const thumbsHtml = item.choiceSignals.map((s, i) => `
+        <button class="signal-thumb-btn" data-index="${i}">${s.svg}</button>
+      `).join("");
+      bodyHtml = `
+        <p class="q-text">「${escapeHtml(item.signal.name)}」を示す図は次のうちどれか。</p>
+        <div class="signal-thumb-grid" id="choices">${thumbsHtml}</div>
+      `;
+    }
+
+    APP.innerHTML = `
+      <div class="quiz-topbar">
+        <span>シグナル認識｜問 ${sigState.index + 1} / ${total}</span>
+        <span class="quiz-progress-track"><span class="quiz-progress-fill" style="width:${pct}%"></span></span>
+      </div>
+      <div class="q-card">
+        <span class="q-cat-tag">審判員の役割・シグナル</span>
+        ${bodyHtml}
+        <div id="explanation-slot"></div>
+      </div>
+      <div class="quiz-nav">
+        <button class="btn btn-ghost" id="btn-quit">中断してホームへ</button>
+        <button class="btn btn-primary hidden" id="btn-next">${sigState.index + 1 < total ? "次の問題へ" : "結果を見る"}</button>
+      </div>
+    `;
+
+    document.getElementById("btn-quit").addEventListener("click", renderHome);
+    document.querySelectorAll("#choices > button").forEach(btn => {
+      btn.addEventListener("click", () => onChooseSignal(parseInt(btn.dataset.index, 10)));
+    });
+  }
+
+  function onChooseSignal(chosenIndex) {
+    const item = sigState.queue[sigState.index];
+    const correct = chosenIndex === item.correctIndex;
+    const buttons = document.querySelectorAll("#choices > button");
+
+    buttons.forEach((btn, i) => {
+      btn.disabled = true;
+      if (i === item.correctIndex) btn.classList.add("correct");
+      else if (i === chosenIndex) btn.classList.add("incorrect");
+    });
+
+    if (correct) {
+      sigState.correctCount += 1;
+    } else {
+      sigState.mistakes.push(item.signal);
+    }
+
+    document.getElementById("explanation-slot").innerHTML = `
+      <div class="explanation ${correct ? "" : "wrong-tone"}">
+        <strong>${correct ? "正解です。" : "不正解。"}</strong>
+        正解は「${escapeHtml(item.signal.name)}」。${escapeHtml(item.signal.hint || "")}
+      </div>
+    `;
+
+    document.getElementById("btn-next").classList.remove("hidden");
+    document.getElementById("btn-next").onclick = () => {
+      if (sigState.index + 1 < sigState.queue.length) {
+        sigState.index += 1;
+        renderSignalQuestion();
+      } else {
+        finishSignalRound();
+      }
+    };
+  }
+
+  function finishSignalRound() {
+    state.screen = "signalResult";
+    const total = sigState.queue.length;
+    const correctCount = sigState.correctCount;
+    const pct = total ? Math.round((correctCount / total) * 100) : 0;
+    saveSignalBest(correctCount, total);
+
+    const mistakeHtml = sigState.mistakes.length === 0
+      ? `<p style="color:var(--muted)">間違えたシグナルはありませんでした。お見事です。</p>`
+      : sigState.mistakes.map(s => `
+          <div class="mistake-item">
+            <div class="signal-figure-wrap" style="max-width:140px;margin:0 0 8px;">${s.svg}</div>
+            <p class="mi-q">${escapeHtml(s.name)}</p>
+            <p style="color:#4B5A6A;font-size:13px;">${escapeHtml(s.hint || "")}</p>
+          </div>
+        `).join("");
+
+    APP.innerHTML = `
+      <div class="result-board">
+        <div class="result-score">${correctCount}<span> / ${total} 問正解</span></div>
+        <p class="result-sub">正答率 ${pct}%</p>
+      </div>
+
+      <p class="section-title">間違えたシグナル(${sigState.mistakes.length}件)</p>
+      <div class="mistake-list">${mistakeHtml}</div>
+
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-signal-retry">もう一度挑戦する</button>
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    document.getElementById("btn-signal-retry").addEventListener("click", startSignalMode);
   }
 
   // ---------------- 起動 ----------------

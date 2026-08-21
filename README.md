@@ -16,7 +16,8 @@
 - **模擬試験モード** — 全カテゴリからランダムに25問、20分の制限時間つきで出題。終了後に合否ライン(目安70%)・カテゴリ別正答率・間違えた問題の解説を表示します。
 - **演習モード** — カテゴリ(コート・用具／チーム編成／サービス・ローテーション／プレー・反則／リベロ／得点・セット・タイムアウト／審判員の役割・シグナル／大会運営)を選んで1問ずつ解説つきで学習できます。
 - **苦手問題の復習** — これまでに間違えた問題だけを再出題します。
-- 学習記録(カテゴリ別正答率・苦手問題)はブラウザの `localStorage` に保存されます(サーバー不要・個人情報の送信なし)。
+- **シグナル認識モード** — オリジナルの棒人間ピクトグラム(`signals.json`)を見て反則・合図名を当てる、または反則名から正しい図を選ぶ、本番の「図を見て答える」形式に近い視覚識別の練習ができます。
+- 学習記録(カテゴリ別正答率・苦手問題)はブラウザの `localStorage` に保存されます(サーバー不要・個人情報の送信なし)。シグナル認識モードの自己ベストも同様にローカル保存されます。
 
 ## 使っている技術
 
@@ -30,8 +31,10 @@ volleyball-c-referee-quiz/
 ├── style.css                  # デザイン
 ├── app.js                     # ロジック(出題・採点・保存)
 ├── questions.json             # 問題データ本体(ここを更新していく)
+├── signals.json                # シグナル認識モード用のピクトグラムデータ(自動生成)
 ├── data/source_hashes.json    # 年次更新チェック用のハッシュ保存先(自動生成)
 ├── scripts/check_rule_updates.py  # ルール情報源の変化を検知するスクリプト
+├── scripts/generate_signals.py    # signals.json を再生成するビルド時スクリプト
 └── .github/workflows/check-rule-updates.yml  # 年1回の自動チェック(GitHub Actions)
 ```
 
@@ -90,6 +93,20 @@ python3 -m http.server 8000
 
 編集後は `python3 -c "import json;json.load(open('questions.json'))"` などで
 JSONとして壊れていないか確認してから push すると安全です。
+
+## シグナルの図を追加・修正する
+
+`signals.json` は手書きせず、`scripts/generate_signals.py` を編集して再生成します
+(公式イラストの複製ではなく、規則書の動作説明文から描き起こしたオリジナルの
+棒人間ピクトグラムです)。
+
+```bash
+cd volleyball-c-referee-quiz
+python3 scripts/generate_signals.py
+```
+
+新しいシグナルを追加する場合は、スクリプト内の `add(id, name, role_label, inner, hint)`
+呼び出しを1つ増やしてください。`role_label` は `"審判"` または `"線審"`。
 
 ## 情報を毎年更新する仕組み
 
