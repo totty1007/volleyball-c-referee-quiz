@@ -13,7 +13,9 @@ import json
 from pathlib import Path
 
 INK = "#0F1F33"
-ACCENT = "#3E7CB1"   # 手・指など「動きの主役」を強調するための差し色(--volley-blue)
+ACCENT = "#E8722C"   # 手・指など「動きの主役」を強調するための差し色。
+                     # UIの他の場所(ボタン等)で使っている青と被らないよう、
+                     # カード色(黄・赤)とも区別しやすいオレンジを採用。
 YELLOW = "#F2B705"
 RED = "#D1495B"
 WOOD = "#C98A4B"
