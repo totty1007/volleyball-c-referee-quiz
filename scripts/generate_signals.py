@@ -75,7 +75,7 @@ def curved_arrow(cx, cy, r, start_deg, end_deg, color=INK):
     x2, y2 = cx + r*math.cos(e), cy + r*math.sin(e)
     large = 1 if abs(end_deg - start_deg) > 180 else 0
     return (f'<path d="M{x1:.1f},{y1:.1f} A{r},{r} 0 {large} 1 {x2:.1f},{y2:.1f}" '
-            f'fill="none" stroke="{color}" stroke-width="4" marker-end="url(#arrowhead)"/>')
+            f'fill="none" stroke="{color}" stroke-width="7" stroke-linecap="round" marker-end="url(#arrowhead)"/>')
 
 ARROWHEAD_DEF = ('<defs><marker id="arrowhead" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">'
                   f'<path d="M0,0 L8,4 L0,8 Z" fill="{INK}"/></marker></defs>')
@@ -137,11 +137,12 @@ add("sig04", "タイムアウト", "審判",
     "片方の手を垂直に立て、その上に反対側の手のひらをのせてT字を作る")
 
 add("sig05", "選手交代(サブスティチューション)", "審判",
+    # 旧版は腕・矢印がすべて体と同じ色(INK)で胴体に埋もれてしまっていたため、
+    # 体より前に張り出す大きめの「循環する2本の矢印」をオレンジで描き直した。
     anim_g(
-        f'<line x1="90" y1="95" x2="110" y2="130" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>' +
-        f'<line x1="110" y1="95" x2="90" y2="130" stroke="{INK}" stroke-width="10" stroke-linecap="round"/>' +
-        curved_arrow(100, 112, 28, -30, 300),
-        "anim-spin", 100, 112),
+        curved_arrow(100, 128, 44, -25, 135, color=ACCENT) +
+        curved_arrow(100, 128, 44, 155, 315, color=ACCENT),
+        "anim-spin", 100, 128),
     "両腕の前腕部を、互いに回転させる(アニメーションで動きを再現)")
 
 add("sig06", "軽度の不法な行為への警告(イエローカード)", "審判",
