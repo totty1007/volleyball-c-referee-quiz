@@ -233,8 +233,8 @@
     const signalReady = Array.isArray(SIGNALS) && SIGNALS.length > 0;
     const signalCardBody = signalReady
       ? (signalBest
-          ? `自己ベスト: ${signalBest.correct} / ${signalBest.total} 問。図を見て反則名を当てる本番形式の練習です。`
-          : "図(ピクトグラム)を見て反則名を当てる、本番の視覚識別問題に近い練習モードです。")
+          ? `自己ベスト: ${signalBest.correct} / ${signalBest.total} 問。${SIGNALS.length}件の図を一覧で覚えてから、図と名称を当てるクイズに挑戦できます。`
+          : `ハンドシグナル${SIGNALS.length}件の図と動作説明の一覧。覚えてから、図を見て名称を当てるクイズに挑戦できます。`)
       : "読み込み中、またはこの端末では利用できません。";
 
     const foulReady = Array.isArray(FOULS) && FOULS.length >= FOUL_CHOICE_COUNT;
@@ -265,7 +265,7 @@
 
     APP.innerHTML = `
       <div class="notice-banner">
-        本アプリは個人が作成した<strong>非公式の学習教材</strong>です。(公財)日本バレーボール協会・神奈川県バレーボール協会・相模原バレーボール協会とは無関係です。<strong>小学生バレーボール(6人制競技規則 付録2)の数値・ルールを基準</strong>にしています(一般成人の6人制とはコート・ネット高さ・ボール・得点・リベロ有無などが異なります)。掲載内容は参考情報であり、正誤の最終確認は必ず最新の公式ルールブック・受験要項で行ってください。「シグナル認識」の図は、規則書の動作説明文をもとに独自に描き起こしたオリジナルの簡易図であり、公式のイラストそのものではありません。実際の細かい所作は必ず公式の審判実技マニュアルの図で確認してください。
+        本アプリは個人が作成した<strong>非公式の学習教材</strong>です。(公財)日本バレーボール協会・神奈川県バレーボール協会・相模原バレーボール協会とは無関係です。<strong>小学生バレーボール(6人制競技規則 付録2)の数値・ルールを基準</strong>にしています(一般成人の6人制とはコート・ネット高さ・ボール・得点・リベロ有無などが異なります)。掲載内容は参考情報であり、正誤の最終確認は必ず最新の公式ルールブック・受験要項で行ってください。「シグナル一覧」の図は、規則書の動作説明文をもとに独自に描き起こしたオリジナルの簡易図であり、公式のイラストそのものではありません。図中の<strong>青い数字バッジ(指の本数)や青い動きの矢印</strong>は覚えやすさのために独自に足したもので、実際のハンドシグナルには含まれません。実際の細かい所作は必ず公式の審判実技マニュアルの図で確認してください。
       </div>
       <div class="mode-grid">
         <button class="mode-card primary" id="btn-exam">
@@ -285,7 +285,7 @@
         </button>
         <button class="mode-card" id="btn-signal" ${signalReady ? "" : "disabled"}>
           <span class="num">MODE 04</span>
-          <h2>シグナル認識</h2>
+          <h2>シグナル一覧＆認識クイズ</h2>
           <p>${signalCardBody}</p>
         </button>
         <button class="mode-card" id="btn-fouls" ${foulReady ? "" : "disabled"}>
@@ -314,7 +314,8 @@
     document.getElementById("btn-exam").addEventListener("click", startExam);
     document.getElementById("btn-review").addEventListener("click", startReview);
     if (signalReady) {
-      document.getElementById("btn-signal").addEventListener("click", startSignalMode);
+      // まず一覧(学習)を見せ、そこから出題へ進ませる(MODE 05の反則と同じ流れ)。
+      document.getElementById("btn-signal").addEventListener("click", renderSignalList);
     }
     if (foulReady) {
       document.getElementById("btn-fouls").addEventListener("click", renderFoulList);
@@ -563,6 +564,46 @@
   // 通常のクイズ(questions.json)とはデータ形状が違うため、専用の画面と
   // 状態(sigState)を用意する。localStorageへの正誤記録(recordAnswer)は
   // カテゴリ別正答率の意味を薄めてしまうため行わず、自己ベストのみ保存する。
+
+  // 図(signal.svg)は学習画面と出題画面で同じものを使う。図中の数字バッジ・
+  // ネットなどの文脈・動きの矢印は「どのシグナルかを識別する情報」なので、
+  // 出題時にも必要だからである(図に反則名は書かれていない)。
+  // 学習と出題の差は、図の表示サイズ(style.css)と、図に添える説明文を
+  // HTML側で出すかどうかで付けている。
+
+  // 学習画面: 全シグナルを図＋名称＋動作説明で一覧する。ここから出題へ進む。
+  function renderSignalList() {
+    state.screen = "signalList";
+    const cardsHtml = SIGNALS.map(s => `
+      <div class="signal-study-card">
+        <div class="signal-study-fig">${s.svg}</div>
+        <div class="signal-study-body">
+          <p class="mi-q">${escapeHtml(s.name)}</p>
+          <p>${escapeHtml(s.hint || "")}</p>
+        </div>
+      </div>
+    `).join("");
+
+    APP.innerHTML = `
+      <p class="section-title">ハンドシグナル一覧(${SIGNALS.length}件)</p>
+      <div class="notice-banner">
+        図は規則書の動作説明文をもとに独自に描き起こした<strong>オリジナルの簡易図</strong>で、公式のイラストそのものではありません。
+        指の本数を示す<strong>青い数字バッジ</strong>と<strong>青い動きの矢印</strong>は、覚えやすさのためにこのアプリが独自に足したもので、
+        実際のハンドシグナルには含まれません。ネット・フロアー・センターライン・アンテナは、そのシグナルが「何を指しているか」を
+        示すために描き添えたものです。実際の細かい所作は必ず公式の審判実技マニュアルの図で確認してください。
+      </div>
+      <div class="signal-study-list">${cardsHtml}</div>
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-start-signal-quiz">シグナルクイズに挑戦</button>
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    document.getElementById("btn-start-signal-quiz").addEventListener("click", startSignalMode);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
   function buildSignalQuestion(signal, pool) {
     const direction = Math.random() < 0.5 ? "toName" : "toPicto";
     const others = shuffle(pool.filter(s => s.id !== signal.id)).slice(0, SIGNAL_CHOICE_COUNT - 1);
@@ -679,7 +720,7 @@
       ? `<p style="color:var(--muted)">間違えたシグナルはありませんでした。お見事です。</p>`
       : sigState.mistakes.map(s => `
           <div class="mistake-item">
-            <div class="signal-figure-wrap" style="max-width:140px;margin:0 0 8px;">${s.svg}</div>
+            <div class="signal-figure-wrap" style="max-width:150px;margin:0 0 8px;">${s.svg}</div>
             <p class="mi-q">${escapeHtml(s.name)}</p>
             <p style="color:#4B5A6A;font-size:13px;">${escapeHtml(s.hint || "")}</p>
           </div>
@@ -696,11 +737,13 @@
 
       <div class="result-actions">
         <button class="btn btn-primary" id="btn-signal-retry">もう一度挑戦する</button>
+        <button class="btn btn-ghost" id="btn-back-siglist">シグナル一覧を見る</button>
         <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
       </div>
     `;
 
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    document.getElementById("btn-back-siglist").addEventListener("click", renderSignalList);
     document.getElementById("btn-signal-retry").addEventListener("click", startSignalMode);
   }
 
