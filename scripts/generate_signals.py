@@ -323,6 +323,20 @@ def net_plane(x=190, y_top=36, y_band=74):
             f'stroke-width="2.5"/>')
 
 
+def gap_arrow(x, y1, y2, color=BLUE, w=4.5):
+    """2点の間が「離れている」ことを示す両矢印。
+    ㉑オーバーネットで手が白帯から離れて上にあることを示す。⑳タッチネットは
+    contact_mark()(接触の印)を使うので、両者が一目で見分けられる。"""
+    marker = "ahA" if color == ACCENT else "ah"
+    mid = (y1 + y2) / 2
+    return (f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2}" stroke="{HALO}" '
+            f'stroke-width="{w + 6}" stroke-linecap="round"/>'
+            f'<line x1="{x}" y1="{mid:.1f}" x2="{x}" y2="{y1}" stroke="{color}" '
+            f'stroke-width="{w}" marker-end="url(#{marker})"/>'
+            f'<line x1="{x}" y1="{mid:.1f}" x2="{x}" y2="{y2}" stroke="{color}" '
+            f'stroke-width="{w}" marker-end="url(#{marker})"/>')
+
+
 def flag(x, y, angle=0, color=WOOD):
     return (f'<g transform="rotate({angle} {x} {y})">'
             f'<line x1="{x}" y1="{y}" x2="{x}" y2="{y - 44}" stroke="{HALO}" stroke-width="9"/>'
@@ -834,10 +848,10 @@ add("sig19", "フォアヒット", "審判",
 # (2026-08-28に公式図で確認)。示す位置が意味なので白帯を青枠で囲む。
 add_raw("sig20", "選手のタッチネット(サービスボールがネットの垂直面を越えないときも同じ)",
     svg_wrap(
-        net_persp(106, 100, 220, 82, 58, 40) +
-        f'<rect x="160" y="66" width="56" height="34" rx="9" fill="none" stroke="{BLUE}" '
-        f'stroke-width="3"/>' +
-        arm3(94, 90, 132, 82, 170, 86) + hand("down", 170, 86, -9),
+        net_persp(120, 112, 226, 88, 64, 46) +
+        contact_mark(192, 97, 10) +
+        arm3(94, 92, 126, 96, 156, 92) +
+        hand("self", 156, 92, 100, mirror=True, n=4, fan=12),
         "審判", side=True),
     "反則をしたチーム側(奥)のネットを示す。腕を水平に伸ばし、手のひらを"
     "下に向けてネットの上端＝白帯に触れる(手はネットより上には出ない)")
@@ -848,12 +862,14 @@ add_raw("sig21", "オーバーネット",
     svg_wrap_two(
         # 横から: 奥のネットの白帯より「上」に手をかざす(⑳との違いがここ)
         body_side("審判") +
-        net_persp(106, 100, 220, 82, 58, 40) + net_plane(190, 40, 87) +
-        arm3(94, 88, 132, 72, 170, 70) + hand("down", 170, 70, -9),
+        net_persp(120, 112, 226, 88, 64, 46) + net_plane(166, 28, 102) +
+        arm3(94, 84, 126, 78, 158, 64) + hand("down", 158, 64, -6) +
+        gap_arrow(184, 71, 96),
         # 正面から: ネットを真横から見た面として描き、手がその面を越える
         body("") + rest_arm("left") +
         net_panel_v(190, 74, 232) + net_plane(190, 30, 74) +
-        arm3(124, 88, 152, 66, 178, 50) + hand("down", 178, 50, 4)),
+        arm3(124, 84, 152, 58, 178, 44) + hand("down", 178, 44, 4) +
+        gap_arrow(202, 56, 75)),
     "手のひらを下に向け、ネット上方にかざす"
     "(白帯に触れるタッチネットと違い、手はネットの垂直面より上に出る)",
     wide=True)
