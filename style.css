@@ -496,10 +496,12 @@ button:focus-visible{
 @keyframes sigSpin{to{transform:rotate(360deg);}}
 /* sigLift / sigChop は「図に描いてある姿勢が動作の終了姿勢」である前提で、
    いったん開始姿勢(破線の位置)まで戻してから終了姿勢へ動かす。回転量は
-   generate_signals.py の開始姿勢と終了姿勢の角度差(キャッチ=64度・
-   アタックヒット=117度)に合わせてあるので、座標を変えたらここも直す。 */
-@keyframes sigLift{0%,12%{transform:rotate(-64deg);} 45%,100%{transform:rotate(0deg);}}
-@keyframes sigChop{0%,12%{transform:rotate(-117deg);} 42%,100%{transform:rotate(0deg);}}
+   generate_signals.py の開始姿勢と終了姿勢の角度差(キャッチ=128度・
+   アタックヒット=117度)に合わせてあるので、座標を変えたらここも直す。
+   符号はSVGの回転の向き(正=時計回り)。v3.1で符号が逆で動作が反対に
+   なっていたのを修正した。 */
+@keyframes sigLift{0%,12%{transform:rotate(128deg);} 45%,100%{transform:rotate(0deg);}}
+@keyframes sigChop{0%,12%{transform:rotate(117deg);} 42%,100%{transform:rotate(0deg);}}
 @keyframes sigWave{0%,100%{transform:rotate(-16deg);} 50%{transform:rotate(16deg);}}
 
 .anim-swing-l{animation:sigSwingL 1.6s ease-in-out infinite;}
