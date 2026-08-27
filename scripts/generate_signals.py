@@ -21,10 +21,13 @@ signals.json ジェネレーター(ビルド時のみ使用する補助スクリ
         腕とネットが重なっても互いに分離して見える。
 
  (2) 指の本数が読めなかった(2本/4本/8本が全部同じギザギザに見えた)
-     → fingers() は指を1本ずつ「白フチ→本体」の順に描くため、隣の指の
-        白フチが手前の指を削って必ず隙間ができる(=数えられる)。
-        加えて num_badge() で本数を数字として明示する。試験で最も問われる
-        箇所なので、公式図には無い学習用の補助表示として意図的に足している。
+     → 指を1本ずつ「白フチ→本体」の順に描くため、隣の指の白フチが手前の
+        指を削って必ず隙間ができる(=数えられる)。加えて num_badge() で
+        本数を数字として明示する。試験で最も問われる箇所なので、公式図には
+        無い学習用の補助表示として意図的に足している。
+        (v3.2でこの描画は hand(..., n=本数, fan=, thumb="fold") に統合した。
+         手のひらの向きも同時に読めるようになり、親指を折るので本数が
+         1本増えて見えることもなくなった。)
 
  (3) 「どこを指しているか」で意味が決まるのに、指す対象が無かった
      → net_panel_v()/net_panel_h()/floor()/center_line()/antenna() で
@@ -119,33 +122,22 @@ def hand_circle(x, y, r=13, fill=ACCENT):
 # 手は必ず hand() で描く。
 
 
-def fingers(x, y, count, spread=14, length=27, angle=-90, w=5):
-    """立てた指を count 本描く。指は「白フチ→本体」を1本ずつ順に描くので、
-    隣の指の白フチが手前の指を削って必ず隙間ができ、本数が数えられる。
-    手のひらは最後に重ねて指の根元をまとめる。"""
-    parts = []
-    start = x - spread * (count - 1) / 2
-    rad = math.radians(angle)
-    for i in range(count):
-        fx = start + i * spread
-        fx2 = fx + length * math.cos(rad)
-        fy2 = y + length * math.sin(rad)
-        parts.append(f'<line x1="{fx:.1f}" y1="{y:.1f}" x2="{fx2:.1f}" y2="{fy2:.1f}" '
-                     f'stroke="{HALO}" stroke-width="{w + 5}" stroke-linecap="round"/>')
-        parts.append(f'<line x1="{fx:.1f}" y1="{y:.1f}" x2="{fx2:.1f}" y2="{fy2:.1f}" '
-                     f'stroke="{ACCENT}" stroke-width="{w}" stroke-linecap="round"/>')
-    parts.append(hand_circle(x, y, 11))
-    return "".join(parts)
+# v2の fingers()(指を線で count 本並べる)は、手のひらの向きが描けず
+# 「どちら向きの手で何本立てているのか」が読めなかったため v3.2 で削除した。
+# 指の本数を示す手は hand(..., n=本数, fan=広げる角度, thumb="fold") で描く。
 
 
-def thumb_up(x, y, angle=0):
+def thumb_up(x, y, angle=0, mirror=False):
     """親指を立てた手(ダブルフォルト用)。丸い手だと「棒付きの飴」に見えてしまう
-    ので、握りこぶしを角丸の四角、親指をその肩口から伸びる細い角丸で描き分ける。"""
-    return (f'<g transform="rotate({angle} {x} {y})">'
-            f'<rect x="{x - 15}" y="{y - 13}" width="30" height="26" rx="10" fill="{HALO}"/>'
-            f'<rect x="{x - 12}" y="{y - 10}" width="24" height="20" rx="8" fill="{ACCENT}"/>'
-            f'<rect x="{x - 15}" y="{y - 35}" width="17" height="27" rx="8.5" fill="{HALO}"/>'
-            f'<rect x="{x - 12.5}" y="{y - 32}" width="12" height="23" rx="6" fill="{ACCENT}"/></g>')
+    ので、握りこぶしを角丸の四角、親指をその肩口から伸びる細い角丸で描き分ける。
+    親指は既定で左側(-X)に出る。両手を立てるシグナルは片方を mirror=True にして
+    左右とも親指が体の外側に来るようにする(公式図がそう描いている)。"""
+    flip = " scale(-1 1)" if mirror else ""
+    return (f'<g transform="translate({x} {y}) rotate({angle}){flip}">'
+            f'<rect x="-15" y="-13" width="30" height="26" rx="10" fill="{HALO}"/>'
+            f'<rect x="-12" y="-10" width="24" height="20" rx="8" fill="{ACCENT}"/>'
+            f'<rect x="-15" y="-35" width="17" height="27" rx="8.5" fill="{HALO}"/>'
+            f'<rect x="-12.5" y="-32" width="12" height="23" rx="6" fill="{ACCENT}"/></g>')
 
 
 def card(x, y, color, w=21, h=29, angle=0):
@@ -325,35 +317,73 @@ def arm3(sx, sy, ex, ey, hx, hy, joint=True):
     return out
 
 
-def _hand_face(back, palm_w=27, palm_h=18, fin_len=16, fin_w=5.6):
+def _hand_face(back, palm_w=27, palm_h=18, fin_len=16, fin_w=5.6,
+               n=4, fan=0, thumb="open"):
     """正面から見た開いた手。原点=手首、-Y方向(上)へ指先が伸びる。
     back=False → 手のひらがこちらを向いている(=手のひらを前方に向けた手)
     back=True  → 手の甲がこちらを向いている(=手のひらを自分に向けた手)
-    親指を出す側も左右で描き分け、鏡像として「表か裏か」が分かるようにする。"""
+
+    n    = 伸ばしている指の本数(1〜4)。残りは手のひらの上端の「折り曲げた
+           こぶ」として描く。本数が意味を持つシグナル(ダブルコンタクト2本・
+           フォアヒット4本・ディレイインサービス片手4本)で使う。
+    fan  = 伸ばした指を扇状に開く角度。公式図のディレイインサービスや
+           ダブルコンタクトは指を広げているので、その再現に使う。
+    thumb= "open" 通常の開いた手(親指も伸ばす) /
+           "fold" 親指を手のひらへ折りたたむ。**指の本数を示すシグナルは
+           必ず "fold"**。親指を伸ばすと本数が1本増えて見えてしまう
+           (公式図も指の本数を示すときは親指を折っている)。
+
+    親指をどちら側に出すかは mirror(hand()の引数)で決める。向きはシグナル
+    ごとに公式図で確認すること(§4-A-1の表)。"""
+    n = max(1, min(4, n))
     xs = [-palm_w / 2 + palm_w * (i + 0.5) / 4 for i in range(4)]
     top = -palm_h
     halo = [f'<rect x="{-palm_w / 2 - 3:.1f}" y="{top - 3:.1f}" width="{palm_w + 6:.1f}" '
             f'height="{palm_h + 9:.1f}" rx="8" fill="{HALO}"/>']
     main = [f'<rect x="{-palm_w / 2:.1f}" y="{top:.1f}" width="{palm_w:.1f}" '
             f'height="{palm_h + 3:.1f}" rx="6" fill="{ACCENT}"/>']
-    for fx in xs:
-        halo.append(f'<line x1="{fx:.1f}" y1="{top + 2}" x2="{fx:.1f}" y2="{top - fin_len:.1f}" '
+    tips = []
+    for i in range(n):
+        fx = xs[i]
+        a = math.radians((i - (n - 1) / 2) * fan)
+        ex = fx + fin_len * math.sin(a)
+        ey = top - fin_len * math.cos(a)
+        tips.append((ex, ey))
+        halo.append(f'<line x1="{fx:.1f}" y1="{top + 2}" x2="{ex:.1f}" y2="{ey:.1f}" '
                     f'stroke="{HALO}" stroke-width="{fin_w + 5:.1f}" stroke-linecap="round"/>')
-        main.append(f'<line x1="{fx:.1f}" y1="{top + 2}" x2="{fx:.1f}" y2="{top - fin_len:.1f}" '
+        main.append(f'<line x1="{fx:.1f}" y1="{top + 2}" x2="{ex:.1f}" y2="{ey:.1f}" '
                     f'stroke="{ACCENT}" stroke-width="{fin_w:.1f}" stroke-linecap="round"/>')
-    tsx = (palm_w / 2 - 2) if back else (-palm_w / 2 + 2)
-    tex = tsx + (14 if back else -14)
-    halo.append(f'<line x1="{tsx:.1f}" y1="-1" x2="{tex:.1f}" y2="{top - 2:.1f}" '
-                f'stroke="{HALO}" stroke-width="{fin_w + 7:.1f}" stroke-linecap="round"/>')
-    main.append(f'<line x1="{tsx:.1f}" y1="-1" x2="{tex:.1f}" y2="{top - 2:.1f}" '
-                f'stroke="{ACCENT}" stroke-width="{fin_w + 1.8:.1f}" stroke-linecap="round"/>')
+    # 折り曲げた指は手のひらの上端のこぶで表す(伸ばした指との差がはっきり出る)
+    for i in range(n, 4):
+        halo.append(f'<circle cx="{xs[i]:.1f}" cy="{top + 1:.1f}" r="{fin_w / 2 + 3.5:.1f}" '
+                    f'fill="{HALO}"/>')
+        main.append(f'<circle cx="{xs[i]:.1f}" cy="{top + 1:.1f}" r="{fin_w / 2 + 1.2:.1f}" '
+                    f'fill="{ACCENT}"/>')
+    if thumb == "open":
+        tsx = (palm_w / 2 - 2) if back else (-palm_w / 2 + 2)
+        tex = tsx + (14 if back else -14)
+        halo.append(f'<line x1="{tsx:.1f}" y1="-1" x2="{tex:.1f}" y2="{top - 2:.1f}" '
+                    f'stroke="{HALO}" stroke-width="{fin_w + 7:.1f}" stroke-linecap="round"/>')
+        main.append(f'<line x1="{tsx:.1f}" y1="-1" x2="{tex:.1f}" y2="{top - 2:.1f}" '
+                    f'stroke="{ACCENT}" stroke-width="{fin_w + 1.8:.1f}" stroke-linecap="round"/>')
     out = "".join(halo) + "".join(main)
+    if thumb == "fold":
+        # 手のひらを横切る短い折りたたんだ親指。輪郭を濃紺で描いて
+        # 「伸ばした指ではない」ことが分かるようにする。
+        tsx = (palm_w / 2 - 3) if back else (-palm_w / 2 + 3)
+        tex = tsx + (-13 if back else 13)
+        out += (f'<line x1="{tsx:.1f}" y1="{-1}" x2="{tex:.1f}" y2="{top + 6:.1f}" '
+                f'stroke="{INK}" stroke-width="{fin_w + 3.4:.1f}" stroke-linecap="round" '
+                f'opacity="0.55"/>')
+        out += (f'<line x1="{tsx:.1f}" y1="{-1}" x2="{tex:.1f}" y2="{top + 6:.1f}" '
+                f'stroke="{ACCENT}" stroke-width="{fin_w + 0.6:.1f}" stroke-linecap="round"/>')
     if back:
-        out += "".join(f'<circle cx="{fx:.1f}" cy="{top + 4:.1f}" r="2.3" fill="{INK}" '
-                       f'opacity="0.8"/>' for fx in xs)
-        out += "".join(f'<line x1="{fx:.1f}" y1="{top - fin_len + 2.5:.1f}" x2="{fx:.1f}" '
-                       f'y2="{top - fin_len + 5.5:.1f}" stroke="{HALO}" '
-                       f'stroke-width="{fin_w - 1.6:.1f}" stroke-linecap="round"/>' for fx in xs)
+        for i in range(n):
+            out += (f'<circle cx="{xs[i]:.1f}" cy="{top + 4:.1f}" r="2.3" fill="{INK}" '
+                    f'opacity="0.8"/>')
+        for ex, ey in tips:
+            out += (f'<circle cx="{ex:.1f}" cy="{ey:.1f}" r="{fin_w / 2 - 0.6:.1f}" '
+                    f'fill="{HALO}"/>')
     else:
         out += (f'<rect x="{-palm_w / 2 + 4:.1f}" y="{top + 4:.1f}" width="{palm_w - 8:.1f}" '
                 f'height="{palm_h - 3:.1f}" rx="5" fill="{PALM_FACE}"/>')
@@ -384,7 +414,7 @@ def _hand_side(face_up, length=34, thick=15):
     return out
 
 
-def hand(kind, x, y, rot=0, mirror=False):
+def hand(kind, x, y, rot=0, mirror=False, n=4, fan=0, thumb="open"):
     """手のひらの向きが必ず読める手のグリフ。向きはシグナルの意味そのもの
     なので、v3では手を必ずこの関数で描く(hand_bar() は使わない)。
       "front" = 手のひらを前方(=見ている側)に向ける
@@ -392,10 +422,13 @@ def hand(kind, x, y, rot=0, mirror=False):
       "up"    = 手のひらを上に向ける
       "down"  = 手のひらを下に向ける
     rot は front/self では指先の向き、up/down では手の伸びる向きの回転角。
-    mirror=True で左右反転する。両手を使うシグナルは、反転しないと片方の
-    親指が体の外側、もう片方が内側に出てしまい人の手に見えない。"""
+    mirror=True で左右反転する。**親指をどちら側に出すかはシグナルごとに
+    公式図で決まっている**(ブロックの反則は内向き、ボールアウトは外向き。
+    §4-A-1の表を見ること)。両手を使うシグナルで反転を忘れると、片方の親指が
+    体の外側、もう片方が内側に出て人の手に見えない。
+    n / fan / thumb は front/self のときだけ効く(_hand_face を参照)。"""
     if kind in ("front", "self"):
-        inner = _hand_face(kind == "self")
+        inner = _hand_face(kind == "self", n=n, fan=fan, thumb=thumb)
     else:
         # 側面から見た手は、指先が左を向く角度(|rot|>90)まで回すと上下が
         # 裏返り、「手のひらを上に向ける」が下向きになってしまう。
@@ -601,7 +634,7 @@ add("sig09", "失格", "審判",
 add("sig10", "セット(ゲーム)の終了", "審判",
     arm3(76, 94, 66, 128, 108, 96) +
     arm3(124, 94, 134, 128, 92, 96) +
-    hand("self", 92, 96, -40) + hand("self", 108, 96, 40),
+    hand("self", 92, 96, -40, mirror=True) + hand("self", 108, 96, 40),
     "両腕を胸の前で交差する(肘は体の横に下げ、手は開いて反対側の肩の高さ・"
     "手の甲が相手側)")
 
@@ -617,16 +650,18 @@ add("sig11", "サービスでボールをヒットしなかった、またはト
 # 8本指。指を描き分けても数えられないので数字バッジを併記する。
 # 肘は体の横に落とし、前腕を立てて手を顔の高さに置く(公式図の形)。
 add("sig12", "ディレイインサービス(サービス時8秒ルールの反則)", "審判",
-    arm3(76, 94, 56, 114, 50, 78) + fingers(48, 68, 4, spread=13, length=24, angle=-100) +
-    arm3(124, 94, 144, 114, 150, 78) + fingers(152, 68, 4, spread=13, length=24, angle=-80) +
+    arm3(76, 94, 54, 112, 48, 78) +
+    hand("front", 48, 78, -12, mirror=True, n=4, fan=15, thumb="fold") +
+    arm3(124, 94, 146, 112, 152, 78) +
+    hand("front", 152, 78, 12, n=4, fan=15, thumb="fold") +
     num_badge(200, 42, "8"),
     "指を8本、広げて上げる(肘を下げて前腕を立て、手は顔の高さ)")
 
 # 「手のひらを前方に向ける」が意味なので、天井向きの平手ではなく
 # こちらを向いた手のひら(明るい面＋手相の線)で描く。
 add("sig13", "ブロックの反則またはスクリーン", "審判",
-    arm3(76, 92, 70, 66, 64, 44) + hand("front", 64, 44, -8) +
-    arm3(124, 92, 130, 66, 136, 44) + hand("front", 136, 44, 8, mirror=True),
+    arm3(76, 92, 70, 66, 64, 44) + hand("front", 64, 44, -8, mirror=True) +
+    arm3(124, 92, 130, 66, 136, 44) + hand("front", 136, 44, 8),
     "両方の手のひらを前方に向け、真上に上げる(天井に向けるのではない)")
 
 # 公式図は腕を体の前に下ろし、人差し指を下に向けて腰のあたりで円を描く。
@@ -648,11 +683,11 @@ add("sig15", "ボール『イン』", "審判",
 # 公式図は「前腕を横に下ろした状態(破線)→垂直に上げる」の2姿勢。
 # 手のひらを自分に向けるので、こちらから見えるのは手の甲。
 add("sig16", "ボール『アウト』", "審判",
-    ghost(arm3(76, 92, 52, 96, 40, 126) + hand("self", 40, 128, 180) +
-          arm3(124, 92, 148, 96, 160, 126) + hand("self", 160, 128, 180, mirror=True)) +
-    arm3(76, 92, 52, 96, 50, 62) + hand("self", 50, 62, 0) +
-    arm3(124, 92, 148, 96, 150, 62) + hand("self", 150, 62, 0, mirror=True) +
-    motion_line(26, 124, 22, 86) + motion_line(174, 124, 178, 86),
+    ghost(arm3(76, 94, 66, 132, 44, 156) + hand("self", 44, 158, 225, mirror=True) +
+          arm3(124, 94, 134, 132, 156, 156) + hand("self", 156, 158, 135)) +
+    arm3(76, 94, 66, 132, 56, 92) + hand("self", 56, 92, 0, mirror=True) +
+    arm3(124, 94, 134, 132, 144, 92) + hand("self", 144, 92, 0) +
+    motion_line(26, 150, 26, 106) + motion_line(174, 150, 174, 106),
     "両手のひらを自分の方に向け、前腕を垂直に上げる"
     "(こちらから見えるのは手の甲)")
 
@@ -668,13 +703,15 @@ add("sig17", "キャッチ(ボールの保持)", "審判",
 
 add("sig18", "ダブルコンタクト", "審判",
     rest_arm("left") +
-    arm3(124, 94, 148, 74, 158, 48) + fingers(158, 46, 2, spread=18, length=26, angle=-74) +
+    arm3(124, 94, 148, 74, 158, 50) +
+    hand("front", 158, 50, 10, n=2, fan=22, thumb="fold") +
     num_badge(198, 96, "2"),
     "指を2本伸ばし、その手を上げる")
 
 add("sig19", "フォアヒット", "審判",
     rest_arm("left") +
-    arm3(124, 94, 148, 74, 158, 48) + fingers(158, 46, 4, spread=12, length=26, angle=-74) +
+    arm3(124, 94, 148, 74, 158, 50) +
+    hand("front", 158, 50, 10, n=4, fan=13, thumb="fold") +
     num_badge(198, 96, "4"),
     "指を4本伸ばし、その手を上げる")
 
@@ -714,8 +751,8 @@ add("sig23", "ペネトレーションフォルト(ボールがネット下を�
     "センターラインまたは該当するラインを指す")
 
 add("sig24", "ダブルフォルトおよびリプレイ", "審判",
-    arm3(76, 94, 56, 78, 54, 50) + thumb_up(52, 38) +
-    arm3(124, 94, 144, 78, 146, 50) + thumb_up(148, 38),
+    arm3(76, 94, 58, 78, 60, 50) + thumb_up(62, 38) +
+    arm3(124, 94, 144, 78, 146, 50) + thumb_up(148, 38, mirror=True),
     "両方の親指を立て、両腕を上げる")
 
 # 公式図は両手を顔の高さで使う。垂直に立てた手は顎の前あたり、なでる手は
@@ -766,7 +803,7 @@ add("sig30", "ボールのアンテナ外通過・アンテナ等への接触・
     antenna(204, 36, 150) +
     arm3(76, 96, 58, 80, 58, 56) +
     anim_g(flag(58, 56), "anim-wave", 58, 56) +
-    motion_arc(62, 40, 24, 214, 326, color=ACCENT, w=4.5) +
+    motion_arc(66, 44, 22, 214, 326, color=ACCENT, w=4.5) +
     arm3(124, 96, 152, 98, 178, 100) + point_hand(178, 100, 4),
     "アンテナまたはラインを指し示し、フラッグを頭上で左右に振る")
 
@@ -776,7 +813,7 @@ add("sig31", "判定不能(ラインジャッジ)", "線審",
     arm3(76, 94, 66, 128, 108, 96) +
     arm3(124, 94, 134, 128, 92, 96) +
     flag(112, 92, angle=46) +
-    hand("self", 92, 96, -40) + hand("self", 108, 96, 40),
+    hand("self", 92, 96, -40, mirror=True) + hand("self", 108, 96, 40),
     "両腕を胸の前で交差する(フラッグは持ったまま)")
 
 # ---------------------------------------------------------------------------
@@ -807,6 +844,8 @@ add_legend("手のひらを上に向けた手。明るい面が上側に付く",
            hand("up", 30, 38, 0))
 add_legend("手のひらを下に向けた手。明るい面が下側に付く",
            hand("down", 30, 34, 0))
+add_legend("指の本数を示す手。親指は折りたたみ、伸ばした指だけを数える",
+           hand("front", 48, 58, 0, n=2, fan=22, thumb="fold"))
 add_legend("薄い破線は動き出す前の姿勢。濃い方が動き終わった姿勢",
            ghost(arm3(22, 18, 32, 42, 42, 64)) + arm3(22, 18, 50, 28, 80, 36))
 add_legend("①→②は動作の順番。青い矢印はその間の動き",
