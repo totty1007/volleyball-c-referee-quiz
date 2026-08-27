@@ -420,18 +420,66 @@ button:focus-visible{
   border-radius:10px;
   padding:12px 14px;
 }
+/* 名称は図と同じ白枠の中に入れる。図と名前が別の枠に分かれていると
+   「どの図がどの反則か」が視線を往復しないと分からない
+   (2026-08-28の指摘への対応)。 */
 .signal-study-fig{
   flex:none;
-  width:150px;
+  width:190px;
   background:#FFFFFF;
   border:1.5px solid #DDD5C2;
   border-radius:10px;
-  padding:6px;
+  padding:6px 6px 0;
+  overflow:hidden;
 }
-.signal-study-fig svg{display:block; width:100%; height:auto;}
+.signal-study-svg svg{display:block; width:100%; height:auto;}
+.signal-study-name{
+  margin:4px -6px 0;
+  padding:6px 8px;
+  background:#F1EEE2;
+  border-top:1.5px solid #DDD5C2;
+  font-size:12.5px;
+  font-weight:700;
+  line-height:1.35;
+  color:var(--ink);
+  word-break:break-word;
+}
 .signal-study-body{min-width:0;}
-.signal-study-body p{margin:2px 0;}
-.signal-study-body p:last-child{color:#4B5A6A; font-size:13px;}
+.signal-study-body p{margin:2px 0; color:#4B5A6A; font-size:13px;}
+
+/* 図の読み方の凡例。手のひらの向きと開始姿勢の描き分けを説明する。
+   図(signals.json の legend)は生成側の hand()/ghost()/step_chip() の
+   出力そのものなので、描き方を変えたら凡例も自動で追従する。 */
+.signal-legend{
+  margin:14px 0 4px;
+  background:var(--card-bg);
+  border-radius:10px;
+  padding:10px 14px;
+}
+.signal-legend > summary{
+  cursor:pointer;
+  font-weight:700;
+  font-size:14px;
+  color:var(--ink);
+}
+.signal-legend-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
+  gap:10px;
+  margin-top:10px;
+}
+.signal-legend-item{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:#FFFFFF;
+  border:1.5px solid #DDD5C2;
+  border-radius:8px;
+  padding:6px 8px;
+}
+.signal-legend-fig{flex:none; width:64px;}
+.signal-legend-fig svg{display:block; width:100%; height:auto;}
+.signal-legend-item p{margin:0; font-size:11.5px; line-height:1.4; color:#4B5A6A;}
 .signal-thumb-btn svg{display:block; width:100%; height:auto;}
 .signal-thumb-btn:hover:not(:disabled){border-color:var(--volley-blue);}
 .signal-thumb-btn:disabled{cursor:default;}
@@ -446,15 +494,19 @@ button:focus-visible{
 @keyframes sigSwingL{0%,100%{transform:rotate(20deg);} 50%{transform:rotate(-20deg);}}
 @keyframes sigSwingR{0%,100%{transform:rotate(-20deg);} 50%{transform:rotate(20deg);}}
 @keyframes sigSpin{to{transform:rotate(360deg);}}
-@keyframes sigLift{0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);}}
-@keyframes sigChop{0%,15%{transform:rotate(0deg);} 40%{transform:rotate(30deg);} 100%{transform:rotate(0deg);}}
+/* sigLift / sigChop は「図に描いてある姿勢が動作の終了姿勢」である前提で、
+   いったん開始姿勢(破線の位置)まで戻してから終了姿勢へ動かす。回転量は
+   generate_signals.py の開始姿勢と終了姿勢の角度差(キャッチ=64度・
+   アタックヒット=117度)に合わせてあるので、座標を変えたらここも直す。 */
+@keyframes sigLift{0%,12%{transform:rotate(-64deg);} 45%,100%{transform:rotate(0deg);}}
+@keyframes sigChop{0%,12%{transform:rotate(-117deg);} 42%,100%{transform:rotate(0deg);}}
 @keyframes sigWave{0%,100%{transform:rotate(-16deg);} 50%{transform:rotate(16deg);}}
 
 .anim-swing-l{animation:sigSwingL 1.6s ease-in-out infinite;}
 .anim-swing-r{animation:sigSwingR 1.6s ease-in-out infinite;}
 .anim-spin{animation:sigSpin 2s linear infinite;}
-.anim-lift{animation:sigLift 1.4s ease-in-out infinite;}
-.anim-chop{animation:sigChop 1.6s ease-in-out infinite;}
+.anim-lift{animation:sigLift 2.2s ease-in-out infinite;}
+.anim-chop{animation:sigChop 2.2s ease-in-out infinite;}
 .anim-wave{animation:sigWave 1s ease-in-out infinite;}
 
 .explanation{
@@ -541,11 +593,23 @@ button:focus-visible{
 }
 .hidden{display:none !important;}
 
+/* 図の読みやすさを優先するブレークポイント。横並びのままだと図が
+   120px 程度まで縮み、手のひらの向きや肘の角度が判別できなくなる。 */
+@media(max-width:560px){
+  .signal-study-card{
+    flex-direction:column;
+    align-items:stretch;
+    gap:8px;
+    padding:10px 12px;
+  }
+  .signal-study-fig{width:100%; max-width:250px; margin:0 auto;}
+  .signal-study-body{text-align:center;}
+  .signal-legend-grid{grid-template-columns:1fr;}
+}
+
 @media(max-width:420px){
   .result-score{font-size:44px;}
   .brand-text h1{font-size:19px;}
-  .signal-study-fig{width:104px;}
-  .signal-study-card{gap:10px; padding:10px 12px;}
   .quiz-topbar{
     flex-wrap:wrap;
     row-gap:8px;

@@ -20,6 +20,7 @@
   let DATA = null;          // questions.json の内容
   let CAT_MAP = {};         // id -> name
   let SIGNALS = null;       // signals.json の内容(取得できない場合はnullのまま)
+  let SIGNAL_LEGEND = [];   // 図の読み方の凡例(signals.json の legend)
   let FOULS = null;         // fouls.json の内容(取得できない場合はnullのまま)
 
   let state = {
@@ -202,6 +203,7 @@
       })
       .then(json => {
         SIGNALS = json.signals || [];
+        SIGNAL_LEGEND = json.legend || [];
         if (state.screen === "home") renderHome();
       })
       .catch(() => {
@@ -574,24 +576,44 @@
   // 学習画面: 全シグナルを図＋名称＋動作説明で一覧する。ここから出題へ進む。
   function renderSignalList() {
     state.screen = "signalList";
-    const cardsHtml = SIGNALS.map(s => `
+    // 名称は図と同じ白枠の中(図の真下)にキャプションとして置く。横に並べる
+    // だけだと、特に画面の狭い端末で図と名前が離れて読めなかった
+    // (「一覧に反則名称も画像と合わせて載せてほしい」2026-08-28の指摘)。
+    const cardsHtml = SIGNALS.map((s, i) => `
       <div class="signal-study-card">
-        <div class="signal-study-fig">${s.svg}</div>
+        <div class="signal-study-fig">
+          <div class="signal-study-svg">${s.svg}</div>
+          <p class="signal-study-name">${i + 1}. ${escapeHtml(s.name)}</p>
+        </div>
         <div class="signal-study-body">
-          <p class="mi-q">${escapeHtml(s.name)}</p>
           <p>${escapeHtml(s.hint || "")}</p>
         </div>
       </div>
     `).join("");
 
+    const legendHtml = SIGNAL_LEGEND.length
+      ? `<details class="signal-legend" open>
+           <summary>図の読み方(手のひらの向き・動きの表し方)</summary>
+           <div class="signal-legend-grid">
+             ${SIGNAL_LEGEND.map(l => `
+               <div class="signal-legend-item">
+                 <div class="signal-legend-fig">${l.svg}</div>
+                 <p>${escapeHtml(l.label)}</p>
+               </div>`).join("")}
+           </div>
+         </details>`
+      : "";
+
     APP.innerHTML = `
       <p class="section-title">ハンドシグナル一覧(${SIGNALS.length}件)</p>
       <div class="notice-banner">
         図は規則書の動作説明文をもとに独自に描き起こした<strong>オリジナルの簡易図</strong>で、公式のイラストそのものではありません。
-        指の本数を示す<strong>青い数字バッジ</strong>と<strong>青い動きの矢印</strong>は、覚えやすさのためにこのアプリが独自に足したもので、
-        実際のハンドシグナルには含まれません。ネット・フロアー・センターライン・アンテナは、そのシグナルが「何を指しているか」を
+        指の本数を示す<strong>青い数字バッジ</strong>・<strong>青い動きの矢印</strong>・<strong>①②の順番チップ</strong>・
+        <strong>薄い破線の開始姿勢</strong>・手のひら側に付けた<strong>明るい面</strong>は、覚えやすさのためにこのアプリが独自に足した
+        表現で、実際のハンドシグナルには含まれません。ネット・フロアー・センターライン・アンテナは、そのシグナルが「何を指しているか」を
         示すために描き添えたものです。実際の細かい所作は必ず公式の審判実技マニュアルの図で確認してください。
       </div>
+      ${legendHtml}
       <div class="signal-study-list">${cardsHtml}</div>
       <div class="result-actions">
         <button class="btn btn-primary" id="btn-start-signal-quiz">シグナルクイズに挑戦</button>
