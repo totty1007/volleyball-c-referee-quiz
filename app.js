@@ -581,7 +581,7 @@
     // (「一覧に反則名称も画像と合わせて載せてほしい」2026-08-28の指摘)。
     const cardsHtml = SIGNALS.map((s, i) => `
       <div class="signal-study-card">
-        <div class="signal-study-fig">
+        <div class="signal-study-fig${s.wide ? " is-wide" : ""}">
           <div class="signal-study-svg">${s.svg}</div>
           <p class="signal-study-name">${i + 1}. ${escapeHtml(s.name)}</p>
         </div>
@@ -661,12 +661,12 @@
       `).join("");
       bodyHtml = `
         <p class="q-text">このシグナルが示す反則・合図は次のうちどれか。</p>
-        <div class="signal-figure-wrap">${item.signal.svg}</div>
+        <div class="signal-figure-wrap${item.signal.wide ? " is-wide" : ""}">${item.signal.svg}</div>
         <div class="choices" id="choices">${choicesHtml}</div>
       `;
     } else {
       const thumbsHtml = item.choiceSignals.map((s, i) => `
-        <button class="signal-thumb-btn" data-index="${i}">${s.svg}</button>
+        <button class="signal-thumb-btn${s.wide ? " is-wide" : ""}" data-index="${i}">${s.svg}</button>
       `).join("");
       bodyHtml = `
         <p class="q-text">「${escapeHtml(item.signal.name)}」を示す図は次のうちどれか。</p>

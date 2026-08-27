@@ -112,6 +112,53 @@ def body(role_label):
     )
 
 
+def body_side(role_label, cx=78):
+    """横から見た人型(右を向く)。ネットの「手前か奥か」「上を越えているか」で
+    意味が決まるシグナル(⑳タッチネット・㉑オーバーネット)は、正面向きの図では
+    奥行きが描けないため横から見た図を使う(公式図もそうしている)。
+    横向きなので見える腕は1本だけ。rest_arm() は付けない(反対の腕は体の
+    後ろに隠れる)。ネットは体の右側に net_persp() で描く。"""
+    chip = ""
+    if role_label:
+        chip = (f'<rect x="3" y="3" width="42" height="19" rx="6" fill="{INK}"/>'
+                f'<text x="24" y="17" text-anchor="middle" font-family="sans-serif" '
+                f'font-size="12" font-weight="700" fill="#FFFFFF">{role_label}</text>')
+    return (
+        limb([(cx - 1, 150), (cx - 5, 230)]) +
+        limb([(cx - 1, 150), (cx + 9, 228)]) +
+        limb([(cx, 58), (cx, 88)], w=16) +
+        f'<path d="M{cx - 18},84 L{cx + 18},84 L{cx + 14},152 L{cx - 14},152 Z" '
+        f'fill="{JERSEY}" stroke="{INK}" stroke-width="5" stroke-linejoin="round"/>' +
+        f'<circle cx="{cx}" cy="36" r="23" fill="{INK}"/>' +
+        # 鼻の出っ張りで向いている方向を示す(横向きだと分からなくなる)
+        f'<path d="M{cx + 19},33 L{cx + 27},38 L{cx + 19},43 Z" fill="{INK}"/>' +
+        chip
+    )
+
+
+def net_persp(nx1=106, ny1=100, nx2=220, ny2=82, d1=58, d2=40, band=9):
+    """遠近法で描いた横から見たネット。手前(nx1,ny1)から奥(nx2,ny2)へ
+    上端(白帯)が上がっていく。d1/d2 は手前・奥での網の垂れ下がり。
+    「手前の白帯」と「奥の白帯」が別の高さになるので、審判が奥のネットに
+    手を触れているのか、ネットの上方に手をかざしているのかが描き分けられる。"""
+    parts = [f'<path d="M{nx1},{ny1} L{nx2},{ny2} L{nx2},{ny2 + d2} L{nx1},{ny1 + d1} Z" '
+             f'fill="{HALO}" stroke="{INK}" stroke-width="2.5"/>']
+    for i in range(1, 8):
+        t = i / 8
+        x = nx1 + (nx2 - nx1) * t
+        yt = ny1 + (ny2 - ny1) * t
+        yb = yt + d1 + (d2 - d1) * t
+        parts.append(f'<line x1="{x:.1f}" y1="{yt:.1f}" x2="{x:.1f}" y2="{yb:.1f}" '
+                     f'stroke="{NETC}" stroke-width="1.4"/>')
+    for j in range(1, 5):
+        u = j / 5
+        parts.append(f'<line x1="{nx1}" y1="{ny1 + d1 * u:.1f}" x2="{nx2}" '
+                     f'y2="{ny2 + d2 * u:.1f}" stroke="{NETC}" stroke-width="1.4"/>')
+    parts.append(f'<line x1="{nx1}" y1="{ny1}" x2="{nx2}" y2="{ny2}" stroke="{INK}" '
+                 f'stroke-width="{band}" stroke-linecap="square"/>')
+    return "".join(parts)
+
+
 def hand_circle(x, y, r=13, fill=ACCENT):
     return (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 3}" fill="{HALO}"/>'
             f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}"/>')
@@ -551,12 +598,45 @@ def anim_g(content, cls, origin_x, origin_y):
     return f'<g class="{cls}" style="transform-origin:{origin_x}px {origin_y}px">{content}</g>'
 
 
-def svg_wrap(inner, role_label):
+def svg_wrap(inner, role_label, side=False):
+    """side=True で横から見た人型(body_side)を使う。ネットの手前/奥や
+    前腕を前方へ持ち上げる動きは、正面向きでは奥行き方向になって読めない。"""
+    figure = body_side(role_label) if side else body(role_label)
     return (f'<svg viewBox="0 0 {VIEW_W} {VIEW_H}" xmlns="http://www.w3.org/2000/svg">'
-            f'{ARROWHEAD_DEF}{body(role_label)}{inner}</svg>')
+            f'{ARROWHEAD_DEF}{figure}{inner}</svg>')
+
+
+def svg_wrap_two(left, right, left_label="横から見た図", right_label="正面から見た図"):
+    """2面図。ネットの垂直面を越えているかどうかで意味が決まるシグナル
+    (㉑オーバーネット)は1方向からの図では説明しきれないので、公式図と同じく
+    横から見た図と正面から見た図を並べる。
+    left/right はそれぞれ人型を含んだ 230x264 の描画内容をそのまま渡す
+    (役職チップは左だけに入れる)。視点のラベルは反則名ではないので、
+    出題で答えが割れることはない。"""
+    return (f'<svg viewBox="0 0 484 300" xmlns="http://www.w3.org/2000/svg">'
+            f'{ARROWHEAD_DEF}'
+            f'<g>{left}</g>'
+            f'<line x1="242" y1="12" x2="242" y2="266" stroke="#DDD5C2" stroke-width="2"/>'
+            f'<g transform="translate(254 0)">{right}</g>'
+            f'<text x="115" y="290" text-anchor="middle" font-family="sans-serif" '
+            f'font-size="16" font-weight="700" fill="{INK}">{left_label}</text>'
+            f'<text x="369" y="290" text-anchor="middle" font-family="sans-serif" '
+            f'font-size="16" font-weight="700" fill="{INK}">{right_label}</text>'
+            f'</svg>')
 
 
 SIGNALS = []
+
+
+def add_raw(id_, name, svg, hint="", wide=False):
+    """SVGを丸ごと差し替えて登録する。2面図のように svg_wrap() の
+    1体1面という前提に収まらないシグナル用。
+    wide=True は横長の図(2面図)の印。app.js/style.css がこの印を見て
+    図の枠を広くする(横長の図を他と同じ幅に押し込むと小さすぎて読めない)。"""
+    item = {"id": id_, "name": name, "hint": hint, "svg": svg}
+    if wide:
+        item["wide"] = True
+    SIGNALS.append(item)
 
 
 def add(id_, name, role_label, inner, hint=""):
@@ -724,11 +804,14 @@ add("sig16", "ボール『アウト』", "審判",
 
 # 公式図は肘を体の横に付けたまま、前腕を体の前で上へ持ち上げる(手のひらは
 # 上向き)。v3は前腕を体の外側へ水平に出していた(2026-08-28に公式図で確認)。
-add("sig17", "キャッチ(ボールの保持)", "審判",
-    ghost(arm3(76, 96, 68, 128, 66, 158) + hand("up", 66, 160, 104)) +
-    anim_g(arm3(76, 96, 68, 128, 94, 110) + hand("up", 94, 108, -28), "anim-lift", 68, 128) +
-    motion_line(84, 172, 110, 134) +
-    step_chip(44, 178) + step_chip(140, 96, "2"),
+add_raw("sig17", "キャッチ(ボールの保持)",
+    svg_wrap(
+        ghost(arm3(94, 92, 100, 124, 106, 160) + hand("up", 108, 162, 62)) +
+        anim_g(arm3(94, 92, 100, 124, 136, 120) + hand("up", 138, 120, -4),
+               "anim-lift", 100, 124) +
+        motion_line(162, 158, 168, 126) +
+        step_chip(100, 198) + step_chip(196, 96, "2"),
+        "審判", side=True),
     "片方の手のひらを上に向け、前腕をゆっくり持ち上げる"
     "(肘は体の横に付けたまま、体の前で上げる)")
 
@@ -749,21 +832,31 @@ add("sig19", "フォアヒット", "審判",
 # 公式図はネットの上端(白帯)が審判の肩の高さにあり、腕を水平に伸ばして
 # 手のひらを下向きに白帯へ触れている。v3は腕を上へ伸ばしていた
 # (2026-08-28に公式図で確認)。示す位置が意味なので白帯を青枠で囲む。
-add("sig20", "選手のタッチネット(サービスボールがネットの垂直面を越えないときも同じ)", "審判",
-    net_panel_v(190, 74, 232) +
-    f'<rect x="166" y="66" width="52" height="27" rx="8" fill="none" stroke="{BLUE}" '
-    f'stroke-width="3"/>' +
-    rest_arm("left") +
-    arm3(124, 92, 152, 86, 172, 80) + hand("down", 172, 80, 4),
-    "反則をしたチーム側のネットを示す(腕を水平に伸ばし、手のひらを下に向けて"
-    "ネットの上端＝白帯に触れる)")
+add_raw("sig20", "選手のタッチネット(サービスボールがネットの垂直面を越えないときも同じ)",
+    svg_wrap(
+        net_persp(106, 100, 220, 82, 58, 40) +
+        f'<rect x="160" y="66" width="56" height="34" rx="9" fill="none" stroke="{BLUE}" '
+        f'stroke-width="3"/>' +
+        arm3(94, 90, 132, 82, 170, 86) + hand("down", 170, 86, -9),
+        "審判", side=True),
+    "反則をしたチーム側(奥)のネットを示す。腕を水平に伸ばし、手のひらを"
+    "下に向けてネットの上端＝白帯に触れる(手はネットより上には出ない)")
 
-add("sig21", "オーバーネット", "審判",
-    net_panel_v(190, 74, 232) + net_plane(190, 30, 74) +
-    rest_arm("left") +
-    arm3(124, 88, 152, 66, 178, 50) + hand("down", 178, 50, 4),
+# 公式図もこのシグナルだけは横から見た図と正面から見た図の2面で描いている。
+# 「ネットの上を越えている」ことは1方向からでは説明しきれないため。
+add_raw("sig21", "オーバーネット",
+    svg_wrap_two(
+        # 横から: 奥のネットの白帯より「上」に手をかざす(⑳との違いがここ)
+        body_side("審判") +
+        net_persp(106, 100, 220, 82, 58, 40) + net_plane(190, 40, 87) +
+        arm3(94, 88, 132, 72, 170, 70) + hand("down", 170, 70, -9),
+        # 正面から: ネットを真横から見た面として描き、手がその面を越える
+        body("") + rest_arm("left") +
+        net_panel_v(190, 74, 232) + net_plane(190, 30, 74) +
+        arm3(124, 88, 152, 66, 178, 50) + hand("down", 178, 50, 4)),
     "手のひらを下に向け、ネット上方にかざす"
-    "(白帯に触れるタッチネットと違い、ネットの垂直面より上でかざす)")
+    "(白帯に触れるタッチネットと違い、手はネットの垂直面より上に出る)",
+    wide=True)
 
 # 公式図は「手のひらを広げて上方に伸ばし、前腕を振り下ろす」。振り下ろす
 # 先は顔の前。①上げた姿勢を破線、②振り下ろした姿勢を実線で描く。

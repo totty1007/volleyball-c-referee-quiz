@@ -379,6 +379,10 @@ button:focus-visible{
    図の下地は白にしておく(生成側 generate_signals.py の HALO と対応)。
    正誤で下地が緑/赤に変わったときだけ白フチが輪郭として見えるが、
    ステッカー状に見えるだけで判別の妨げにはならない。 */
+/* 横長の図(2面図)は他と同じ幅に押し込むと小さすぎて読めないので、
+   signals.json の wide 印が付いたものだけ枠を広く取る。 */
+.signal-figure-wrap.is-wide{max-width:360px;}
+.signal-thumb-btn.is-wide{grid-column:1 / -1;}
 .signal-figure-wrap{
   max-width:240px;
   margin:0 auto 18px;
@@ -432,6 +436,7 @@ button:focus-visible{
   padding:6px 6px 0;
   overflow:hidden;
 }
+.signal-study-fig.is-wide{width:330px;}
 .signal-study-svg svg{display:block; width:100%; height:auto;}
 .signal-study-name{
   margin:4px -6px 0;
@@ -496,11 +501,11 @@ button:focus-visible{
 @keyframes sigSpin{to{transform:rotate(360deg);}}
 /* sigLift / sigChop は「図に描いてある姿勢が動作の終了姿勢」である前提で、
    いったん開始姿勢(破線の位置)まで戻してから終了姿勢へ動かす。回転量は
-   generate_signals.py の開始姿勢と終了姿勢の角度差(キャッチ=128度・
+   generate_signals.py の開始姿勢と終了姿勢の角度差(キャッチ=87度・
    アタックヒット=117度)に合わせてあるので、座標を変えたらここも直す。
    符号はSVGの回転の向き(正=時計回り)。v3.1で符号が逆で動作が反対に
    なっていたのを修正した。 */
-@keyframes sigLift{0%,12%{transform:rotate(128deg);} 45%,100%{transform:rotate(0deg);}}
+@keyframes sigLift{0%,12%{transform:rotate(87deg);} 45%,100%{transform:rotate(0deg);}}
 @keyframes sigChop{0%,12%{transform:rotate(117deg);} 42%,100%{transform:rotate(0deg);}}
 @keyframes sigWave{0%,100%{transform:rotate(-16deg);} 50%{transform:rotate(16deg);}}
 
@@ -605,6 +610,7 @@ button:focus-visible{
     padding:10px 12px;
   }
   .signal-study-fig{width:100%; max-width:250px; margin:0 auto;}
+  .signal-study-fig.is-wide{width:100%; max-width:none;}
   .signal-study-body{text-align:center;}
   .signal-legend-grid{grid-template-columns:1fr;}
 }
