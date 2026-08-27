@@ -265,6 +265,17 @@ def antenna(x=196, y1=20, y2=132):
     return "".join(parts)
 
 
+def net_plane(x=190, y_top=36, y_band=74):
+    """ネットの垂直面。白帯から上へ伸ばした線で、公式図がオーバーネットの
+    説明に破線で描き添えているもの。手がこの線を越えていれば「ネットの上方に
+    かざしている」ことが読める。アンテナ(紅白)と紛れないよう、網目と同じ
+    灰色の細い線にしてある。"""
+    return (f'<line x1="{x}" y1="{y_top}" x2="{x}" y2="{y_band}" stroke="{HALO}" '
+            f'stroke-width="7"/>'
+            f'<line x1="{x}" y1="{y_top}" x2="{x}" y2="{y_band}" stroke="{NETC}" '
+            f'stroke-width="2.5"/>')
+
+
 def flag(x, y, angle=0, color=WOOD):
     return (f'<g transform="rotate({angle} {x} {y})">'
             f'<line x1="{x}" y1="{y}" x2="{x}" y2="{y - 44}" stroke="{HALO}" stroke-width="9"/>'
@@ -748,15 +759,17 @@ add("sig20", "選手のタッチネット(サービスボールがネットの�
     "ネットの上端＝白帯に触れる)")
 
 add("sig21", "オーバーネット", "審判",
-    net_panel_h(88, 132, 216, 70) +
+    net_panel_v(190, 74, 232) + net_plane(190, 30, 74) +
     rest_arm("left") +
-    arm3(124, 92, 150, 80, 174, 72) + hand("down", 176, 70, 4),
-    "手のひらを下に向け、ネット上方にかざす")
+    arm3(124, 88, 152, 66, 178, 50) + hand("down", 178, 50, 4),
+    "手のひらを下に向け、ネット上方にかざす"
+    "(白帯に触れるタッチネットと違い、ネットの垂直面より上でかざす)")
 
 # 公式図は「手のひらを広げて上方に伸ばし、前腕を振り下ろす」。振り下ろす
 # 先は顔の前。①上げた姿勢を破線、②振り下ろした姿勢を実線で描く。
 add("sig22", "アタックヒットの反則", "審判",
-    ghost(arm3(124, 92, 148, 72, 156, 38) + hand("front", 156, 38, 12, mirror=True)) +
+    rest_arm("left") +
+    ghost(arm3(124, 92, 148, 72, 156, 40) + hand_edge(156, 40, palm="right")) +
     anim_g(arm3(124, 92, 148, 72, 116, 80) + hand("down", 112, 80, 174), "anim-chop", 148, 72) +
     motion_arc(148, 72, 34, -77, 166, color=ACCENT, sweep=0) +
     step_chip(194, 42) + step_chip(94, 110, "2"),
