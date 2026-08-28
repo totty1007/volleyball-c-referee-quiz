@@ -341,6 +341,7 @@
         renderHome();
       });
     });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   // ---------------- モード開始 ----------------
@@ -449,6 +450,7 @@
     document.querySelectorAll(".choice-btn").forEach(btn => {
       btn.addEventListener("click", () => onChoose(parseInt(btn.dataset.index, 10)));
     });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function onChoose(chosenIndex) {
@@ -560,6 +562,7 @@
       const pool = DATA.questions.filter(q => ids.has(q.id));
       beginQuiz("review", shuffle(pool));
     });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   // ---------------- シグナル認識モード ----------------
@@ -694,6 +697,7 @@
     document.querySelectorAll("#choices > button").forEach(btn => {
       btn.addEventListener("click", () => onChooseSignal(parseInt(btn.dataset.index, 10)));
     });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function onChooseSignal(chosenIndex) {
@@ -767,6 +771,7 @@
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
     document.getElementById("btn-back-siglist").addEventListener("click", renderSignalList);
     document.getElementById("btn-signal-retry").addEventListener("click", startSignalMode);
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   // ---------------- 反則一覧＆反則クイズ ----------------
@@ -799,6 +804,7 @@
 
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
     document.getElementById("btn-start-foul-quiz").addEventListener("click", startFoulQuiz);
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function buildFoulQuestion(foul, pool) {
@@ -863,6 +869,7 @@
     document.querySelectorAll("#choices > button").forEach(btn => {
       btn.addEventListener("click", () => onChooseFoul(parseInt(btn.dataset.index, 10)));
     });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function onChooseFoul(chosenIndex) {
@@ -935,6 +942,7 @@
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
     document.getElementById("btn-back-list").addEventListener("click", renderFoulList);
     document.getElementById("btn-foul-retry").addEventListener("click", startFoulQuiz);
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   // ---------------- 起動 ----------------
