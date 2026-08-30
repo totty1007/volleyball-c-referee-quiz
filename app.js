@@ -533,7 +533,7 @@
             <p class="mi-q">${escapeHtml(q.question)}</p>
             <p class="mi-your">あなたの回答: ${escapeHtml(yourAns)}</p>
             <p class="mi-correct">正解: ${escapeHtml(q.choices[q.answer])}</p>
-            <p style="color:#4B5A6A;font-size:13px;">${escapeHtml(q.explanation)}</p>
+            <p style="color:var(--ink);font-weight:500;font-size:13px;">${escapeHtml(q.explanation)}</p>
           </div>`;
         }).join("");
 
@@ -748,7 +748,7 @@
           <div class="mistake-item">
             <div class="signal-figure-wrap" style="max-width:150px;margin:0 0 8px;">${s.svg}</div>
             <p class="mi-q">${escapeHtml(s.name)}</p>
-            <p style="color:#4B5A6A;font-size:13px;">${escapeHtml(s.hint || "")}</p>
+            <p style="color:var(--ink);font-weight:500;font-size:13px;">${escapeHtml(s.hint || "")}</p>
           </div>
         `).join("");
 
@@ -919,7 +919,7 @@
       : foulState.mistakes.map(f => `
           <div class="mistake-item">
             <p class="mi-q">${escapeHtml(f.name)}</p>
-            <p style="color:#4B5A6A;font-size:13px;">${escapeHtml(f.description)}</p>
+            <p style="color:var(--ink);font-weight:500;font-size:13px;">${escapeHtml(f.description)}</p>
           </div>
         `).join("");
 

@@ -353,6 +353,7 @@ button:focus-visible{
   border:1.5px solid #DDD5C2;
   background:#FCFAF4;
   color:var(--ink);
+  font-weight:500;
   border-radius:10px;
   padding:13px 16px;
   font-size:14.5px;
@@ -522,7 +523,8 @@ button:focus-visible{
   border-radius:10px;
   background:#F1EEE2;
   font-size:13.5px;
-  color:#3B4653;
+  color:var(--ink);
+  font-weight:500;
   border-left:4px solid var(--volley-blue);
 }
 .explanation.wrong-tone{border-left-color:var(--incorrect);}
