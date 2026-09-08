@@ -11,6 +11,7 @@
   const STORAGE_WRONG = "vcRef_wrong_v1";      // これまで間違えた問題ID
   const STORAGE_SIGNAL_BEST = "vcRef_signal_best_v1"; // シグナル認識の自己ベスト
   const STORAGE_FOUL_BEST = "vcRef_foul_best_v1";     // 反則クイズの自己ベスト
+  const STORAGE_EXAM_BEST = "vcRef_exam06_best_v1";   // 模擬審査会の自己ベスト(点数)
   const EXAM_SIZE = 25;
   const EXAM_TIME_SEC = 20 * 60; // 20分
   const PRACTICE_LETTERS = ["A", "B", "C", "D", "E"];
@@ -22,6 +23,8 @@
   let SIGNALS = null;       // signals.json の内容(取得できない場合はnullのまま)
   let SIGNAL_LEGEND = [];   // 図の読み方の凡例(signals.json の legend)
   let FOULS = null;         // fouls.json の内容(取得できない場合はnullのまま)
+  let EXAM = null;          // exam.json の内容(模擬審査会。取得できない場合はnullのまま)
+  let EXAM_FIGURES = null;  // exam_figures.json の figures(コート図・ローテーション図)
 
   let state = {
     screen: "loading",
@@ -122,6 +125,25 @@
       /* 保存できなくても結果表示は優先する */
     }
   }
+  // 模擬審査会は点数(100点満点)で自己ベストを持つ。項目数ではなく点数で
+  // 比べるのは、問5だけ配点が違うため。
+  function loadExamBest() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_EXAM_BEST)) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveExamBest(score, total) {
+    try {
+      const prev = loadExamBest();
+      if (!prev || score > prev.score) {
+        localStorage.setItem(STORAGE_EXAM_BEST, JSON.stringify({ score: score, total: total }));
+      }
+    } catch (e) { /* localStorageが使えない環境では記録しないだけ */ }
+  }
+
   function loadFoulBest() {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_FOUL_BEST)) || null;
@@ -210,6 +232,26 @@
         SIGNALS = null;
       });
 
+    // 模擬審査会(MODE 06)も任意機能。exam.json と exam_figures.json の
+    // 両方が揃って初めて使えるので、片方でも失敗したらカードを無効にする。
+    Promise.all([
+      fetch("exam.json", { cache: "no-store" }).then(r => {
+        if (!r.ok) throw new Error("exam.json の取得に失敗しました");
+        return r.json();
+      }),
+      fetch("exam_figures.json", { cache: "no-store" }).then(r => {
+        if (!r.ok) throw new Error("exam_figures.json の取得に失敗しました");
+        return r.json();
+      }),
+    ]).then(([ex, fg]) => {
+      EXAM = ex;
+      EXAM_FIGURES = (fg && fg.figures) || {};
+      if (state.screen === "home") renderHome();
+    }).catch(() => {
+      EXAM = null;
+      EXAM_FIGURES = null;
+    });
+
     // 反則一覧・反則クイズも任意機能。取得に失敗してもメインのクイズ機能には
     // 影響させず、ホーム画面でそのカードを無効表示にするだけにする。
     fetch("fouls.json", { cache: "no-store" })
@@ -247,6 +289,13 @@
 
     const foulReady = Array.isArray(FOULS) && FOULS.length >= FOUL_CHOICE_COUNT;
     const foulBest = loadFoulBest();
+    const examBest = loadExamBest();
+    const examReady = !!(EXAM && EXAM_FIGURES && Array.isArray(SIGNALS) && SIGNALS.length > 0);
+    const examCardBody = examReady
+      ? (examBest
+          ? `自己ベスト: ${examBest.score} / ${examBest.total} 点。実物の審査会と同じ構成・${EXAM.meta.totalItems}項目・${EXAM.meta.totalPoints}点満点で通して解きます。`
+          : `実物のC級審査会筆記試験と同じ構成(問1〜問7)・同じ出題数(${EXAM.meta.totalItems}項目)・同じ配点(${EXAM.meta.totalPoints}点満点)で、1枚の答案を通して解きます。問題文は自作です。`)
+      : "模擬審査会のデータ(exam.json / exam_figures.json / signals.json)を読み込めませんでした。";
     const foulCardBody = foulReady
       ? (foulBest
           ? `自己ベスト: ${foulBest.correct} / ${foulBest.total} 問。反則の名称と説明の一覧を見てから、一問一答で覚えられます。`
@@ -301,6 +350,11 @@
           <h2>反則一覧＆反則クイズ</h2>
           <p>${foulCardBody}</p>
         </button>
+        <button class="mode-card" id="btn-exam06" ${examReady ? "" : "disabled"}>
+          <span class="num">MODE 06</span>
+          <h2>模擬審査会(本番形式)</h2>
+          <p>${examCardBody}</p>
+        </button>
         <div class="mode-card" style="cursor:default;">
           <span class="num">STATUS</span>
           <h2>学習の記録</h2>
@@ -327,6 +381,9 @@
     }
     if (foulReady) {
       document.getElementById("btn-fouls").addEventListener("click", renderFoulList);
+    }
+    if (examReady) {
+      document.getElementById("btn-exam06").addEventListener("click", renderExam);
     }
     document.getElementById("btn-practice").addEventListener("click", () => {
       window.scrollTo({ top: document.getElementById("cat-list").offsetTop - 100, behavior: "smooth" });
@@ -777,6 +834,290 @@
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
     document.getElementById("btn-back-siglist").addEventListener("click", renderSignalList);
     document.getElementById("btn-signal-retry").addEventListener("click", startSignalMode);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  // ---------------- 模擬審査会(MODE 06) ----------------
+  // 実物のC級審査会筆記試験と同じ構成(問1〜問7)・出題数(66項目)・配点
+  // (問5のみ1項目2点、その他1項目1.5点、合計100点)で解く画面。
+  // 通常のクイズと違い、1問ずつ出すのではなく**本番と同じように1枚の答案を
+  // 最後まで解いてから採点する**。途中で正解を見せないのが本番形式の要点。
+  //
+  // 問題文は exam.json、図は exam_figures.json、問4の選択肢の図は
+  // signals.json を流用する(同じ図を使い回すことで、MODE 04で覚えた図が
+  // そのまま試験で問われる形になる)。
+  //
+  // 採点結果は localStorage の自己ベストのみ保存し、questions.json の
+  // カテゴリ別正答率には反映しない(MODE 04/05と同じ意図的な設計)。
+
+  const EXAM_INPUT = "exam-in";   // 解答欄に付けるクラス。採点時にここから値を読む
+
+  function examItemPoints(block) {
+    return typeof block.points === "number" ? block.points : EXAM.meta.defaultPoints;
+  }
+
+  // 選択肢の番号を①②③…で表示する。10を超える語群(問2)もあるので、
+  // 丸数字が無い範囲は素の数字にフォールバックする。
+  const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖";
+  function circled(n) {
+    return n >= 1 && n <= CIRCLED.length ? CIRCLED.charAt(n - 1) : String(n);
+  }
+
+  function examChoiceList(choices) {
+    return `<ul class="exam-choices">${choices.map((c, i) =>
+      `<li><span class="exam-cno">${circled(i + 1)}</span>${escapeHtml(c)}</li>`).join("")}</ul>`;
+  }
+
+  function examSelect(key, count) {
+    const opts = ['<option value="">—</option>'].concat(
+      Array.from({ length: count }, (_, i) =>
+        `<option value="${i + 1}">${circled(i + 1)}</option>`)).join("");
+    return `<select class="${EXAM_INPUT} exam-sel" data-key="${key}">${opts}</select>`;
+  }
+
+  function renderExamBlock(sec, block, si, bi) {
+    const key = `${si}-${bi}`;
+    if (block.kind === "fill") {
+      const head = block.prompt ? `<p class="exam-q">${escapeHtml(block.prompt)}</p>` : "";
+      const rows = block.items.map((it, k) => `
+        <div class="exam-blank">
+          <span class="exam-blank-label">( ${escapeHtml(it.label)} )</span>
+          ${examSelect(`${key}-${k}`, block.choices.length)}
+        </div>`).join("");
+      return `${head}${examChoiceList(block.choices)}
+        <div class="exam-blank-grid${block.compact ? " compact" : ""}">${rows}</div>`;
+    }
+    if (block.kind === "choice") {
+      const opts = block.choices.map((c, i) => `
+        <label class="exam-opt">
+          <input type="radio" class="${EXAM_INPUT}" data-key="${key}" name="ex-${key}" value="${i + 1}">
+          <span class="exam-cno">${circled(i + 1)}</span>${escapeHtml(c)}
+        </label>`).join("");
+      return `<p class="exam-q">${escapeHtml(block.prompt)}</p>
+        <div class="exam-opts">${opts}</div>`;
+    }
+    if (block.kind === "multi") {
+      const opts = block.choices.map((c, i) => `
+        <label class="exam-opt">
+          <input type="checkbox" class="${EXAM_INPUT}" data-key="${key}" value="${i + 1}">
+          <span class="exam-cno">${circled(i + 1)}</span>${escapeHtml(c)}
+        </label>`).join("");
+      return `<p class="exam-q">${escapeHtml(block.prompt || "")}
+          <span class="exam-pick">${block.pick}つ選ぶ</span></p>
+        <div class="exam-opts">${opts}</div>`;
+    }
+    if (block.kind === "signal") {
+      // 問4の選択肢はハンドシグナルの図。図に反則名は書かれていないので、
+      // MODE 04と同じ図をそのまま選択肢として並べられる。
+      const figs = (sec.signalChoices || []).map((sid, i) => {
+        const s = (SIGNALS || []).find(x => x.id === sid);
+        return `<div class="exam-sigfig">
+            <span class="exam-cno">${circled(i + 1)}</span>
+            <div class="exam-sigfig-svg">${s ? s.svg : ""}</div>
+          </div>`;
+      }).join("");
+      const rows = block.items.map((it, k) => `
+        <div class="exam-case">
+          <span class="exam-case-label">${escapeHtml(it.label)}</span>
+          <span class="exam-case-text">${escapeHtml(it.text)}</span>
+          ${examSelect(`${key}-${k}`, (sec.signalChoices || []).length)}
+        </div>`).join("");
+      return `<div class="exam-sigfig-grid">${figs}</div><div>${rows}</div>`;
+    }
+    if (block.kind === "tf") {
+      const rows = block.items.map((it, k) => `
+        <div class="exam-tf">
+          <span class="exam-case-label">(${k + 1})</span>
+          <span class="exam-case-text">${escapeHtml(it.text)}</span>
+          <span class="exam-tf-btns">
+            <label><input type="radio" class="${EXAM_INPUT}" data-key="${key}-${k}"
+              name="ex-${key}-${k}" value="o">○</label>
+            <label><input type="radio" class="${EXAM_INPUT}" data-key="${key}-${k}"
+              name="ex-${key}-${k}" value="x">×</label>
+          </span>
+        </div>`).join("");
+      return `<div>${rows}</div>`;
+    }
+    return "";
+  }
+
+  function renderExam() {
+    state.screen = "exam06";
+    const best = loadExamBest();
+    const secHtml = EXAM.sections.map((sec, si) => {
+      const fig = sec.figure && EXAM_FIGURES && EXAM_FIGURES[sec.figure]
+        ? `<div class="exam-figure">${EXAM_FIGURES[sec.figure]}</div>` : "";
+      const blocks = sec.blocks.map((b, bi) =>
+        `<div class="exam-block">${renderExamBlock(sec, b, si, bi)}</div>`).join("");
+      const passage = sec.passage
+        ? `<div class="exam-passage">${sec.passage.map(l =>
+            `<p>${escapeHtml(l)}</p>`).join("")}</div>` : "";
+      return `<section class="exam-section" id="exam-sec-${si}">
+          <p class="exam-sec-head"><span>${escapeHtml(sec.no)}</span>${escapeHtml(sec.title)}</p>
+          <p class="exam-lead">${escapeHtml(sec.lead)}</p>
+          ${fig}${passage}${blocks}
+        </section>`;
+    }).join("");
+
+    APP.innerHTML = `
+      <p class="section-title">模擬審査会(本番形式)</p>
+      <div class="notice-banner">
+        実物のC級審査会筆記試験と<strong>同じ構成(問1〜問7)・同じ出題数(${EXAM.meta.totalItems}項目)・
+        同じ配点(問5のみ1項目2点、その他1項目1.5点で合計${EXAM.meta.totalPoints}点)</strong>で作った模擬試験です。
+        <strong>問題文はこのアプリの自作</strong>で、協会が作成した練習問題の複製ではありません。
+        内容は演習モードの出典済み設問・解説と、規則書の公式ハンドシグナルのページを出典としています。
+        実物の練習問題に合格点の記載がなかったため、<strong>合否判定は行わず得点だけを表示</strong>します。
+        最後まで解いてから下の「採点する」を押してください。
+      </div>
+      ${best ? `<p class="exam-best">自己ベスト: ${best.score} / ${best.total} 点</p>` : ""}
+      <div class="exam-paper">${secHtml}</div>
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-exam-grade">採点する</button>
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    document.getElementById("btn-exam-grade").addEventListener("click", gradeExam);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  // 解答欄の値を key -> 値 で集める。ラジオは選択されたものだけ、
+  // チェックボックスは配列で返す。
+  function collectExamAnswers() {
+    const out = {};
+    APP.querySelectorAll("." + EXAM_INPUT).forEach(el => {
+      const key = el.getAttribute("data-key");
+      if (el.type === "checkbox") {
+        if (!out[key]) out[key] = [];
+        if (el.checked) out[key].push(Number(el.value));
+      } else if (el.type === "radio") {
+        if (el.checked) out[key] = el.value;
+      } else {
+        out[key] = el.value === "" ? null : Number(el.value);
+      }
+    });
+    return out;
+  }
+
+  function gradeExam() {
+    const got = collectExamAnswers();
+    let score = 0;
+    let correctItems = 0;
+    const secResults = [];
+
+    EXAM.sections.forEach((sec, si) => {
+      let sCorrect = 0, sItems = 0, sScore = 0, sMax = 0;
+      const detail = [];
+      sec.blocks.forEach((block, bi) => {
+        const key = `${si}-${bi}`;
+        const pt = examItemPoints(block);
+        if (block.kind === "fill" || block.kind === "signal") {
+          block.items.forEach((it, k) => {
+            const mine = got[`${key}-${k}`];
+            const ok = mine === it.answer;
+            sItems++; sMax += pt;
+            if (ok) { sCorrect++; sScore += pt; }
+            detail.push({
+              label: it.label, ok: ok,
+              mine: mine ? circled(mine) : "無解答",
+              right: circled(it.answer),
+              rightText: block.choices ? block.choices[it.answer - 1] : "",
+              note: it.note,
+            });
+          });
+        } else if (block.kind === "tf") {
+          block.items.forEach((it, k) => {
+            const mine = got[`${key}-${k}`];
+            const ok = (mine === "o") === it.answer && (mine === "o" || mine === "x");
+            sItems++; sMax += pt;
+            if (ok) { sCorrect++; sScore += pt; }
+            detail.push({
+              label: `(${k + 1})`, ok: ok,
+              mine: mine === "o" ? "○" : mine === "x" ? "×" : "無解答",
+              right: it.answer ? "○" : "×", rightText: "", note: it.note,
+            });
+          });
+        } else if (block.kind === "choice") {
+          const mine = got[key] ? Number(got[key]) : null;
+          const ok = mine === block.answer;
+          sItems++; sMax += pt;
+          if (ok) { sCorrect++; sScore += pt; }
+          detail.push({
+            label: `(${bi + 1})`, ok: ok,
+            mine: mine ? circled(mine) : "無解答",
+            right: circled(block.answer), rightText: block.choices[block.answer - 1],
+            note: block.note,
+          });
+        } else if (block.kind === "multi") {
+          // 「5つ選ぶ」形式は、正解を1つ当てるごとに1項目分の加点。
+          // 余分に選んだ分はその都度1項目分の減点にする(当てずっぽうで
+          // 全部選べば満点になってしまうのを防ぐ)。0点未満にはしない。
+          const mine = got[key] || [];
+          const hit = mine.filter(v => block.answer.indexOf(v) >= 0).length;
+          const over = mine.length - hit;
+          const gain = Math.max(0, hit - over);
+          sItems += block.pick; sMax += block.pick * pt;
+          sCorrect += gain; sScore += gain * pt;
+          detail.push({
+            label: "", ok: gain === block.pick,
+            mine: mine.length ? mine.sort((a, b) => a - b).map(circled).join(" ") : "無解答",
+            right: block.answer.map(circled).join(" "), rightText: "",
+            note: block.note,
+            sub: `正解 ${hit} / 余分に選んだ ${over} → ${gain} 項目分の加点`,
+          });
+        }
+      });
+      score += sScore; correctItems += sCorrect;
+      secResults.push({ no: sec.no, title: sec.title, correct: sCorrect, items: sItems,
+                        score: sScore, max: sMax, detail: detail });
+    });
+
+    const total = EXAM.meta.totalPoints;
+    const rounded = Math.round(score * 10) / 10;
+    saveExamBest(rounded, total);
+
+    const bars = secResults.map(r => `
+      <div class="bd-row">
+        <span class="bd-name">${escapeHtml(r.no)} ${escapeHtml(r.title)}</span>
+        <span class="bd-track"><span class="bd-fill" style="width:${r.max ? (r.score / r.max * 100) : 0}%"></span></span>
+        <span class="bd-val">${r.correct}/${r.items}項目 ${Math.round(r.score * 10) / 10}/${Math.round(r.max * 10) / 10}点</span>
+      </div>`).join("");
+
+    const detailHtml = secResults.map(r => `
+      <div class="exam-review">
+        <p class="exam-sec-head"><span>${escapeHtml(r.no)}</span>${escapeHtml(r.title)}</p>
+        ${r.detail.map(d => `
+          <div class="exam-review-item ${d.ok ? "ok" : "ng"}">
+            <p class="exam-review-head">
+              <span class="exam-review-mark">${d.ok ? "正解" : "不正解"}</span>
+              ${d.label ? `<span class="exam-review-label">${escapeHtml(d.label)}</span>` : ""}
+              <span>あなたの解答: ${escapeHtml(d.mine)} ／ 正解: ${escapeHtml(d.right)}${
+                d.rightText ? `（${escapeHtml(d.rightText)}）` : ""}</span>
+            </p>
+            ${d.sub ? `<p class="exam-review-sub">${escapeHtml(d.sub)}</p>` : ""}
+            ${d.note ? `<p>${escapeHtml(d.note)}</p>` : ""}
+          </div>`).join("")}
+      </div>`).join("");
+
+    APP.innerHTML = `
+      <p class="section-title">模擬審査会の結果</p>
+      <div class="result-card">
+        <p class="result-score">${rounded} <span style="font-size:20px;">/ ${total} 点</span></p>
+        <p>正解した項目: ${correctItems} / ${EXAM.meta.totalItems}</p>
+        <p class="result-note">実物の練習問題に合格点の記載がなかったため、合否判定は行っていません。
+        項目別の正誤と解説を下に出しているので、落とした所を規則書で確認してください。</p>
+      </div>
+      <p class="section-title">問別の得点</p>
+      <div class="breakdown">${bars}</div>
+      <p class="section-title">解答と解説</p>
+      ${detailHtml}
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-exam-again">もう一度解く</button>
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+    document.getElementById("btn-exam-again").addEventListener("click", renderExam);
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
