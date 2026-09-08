@@ -375,6 +375,21 @@ button:focus-visible{
 .choice-btn.incorrect{background:#FBEAEC; border-color:var(--incorrect);}
 .choice-btn.incorrect .letter{color:var(--incorrect);}
 
+/* 反則一覧のあいうえお行見出し。一覧が長いので、行の切り替わりが
+   分かるようにしておかないと目で追えない。 */
+.kana-row-head{
+  margin:18px 0 6px;
+  padding:3px 10px;
+  display:inline-block;
+  background:var(--volley-blue);
+  color:#FFFFFF;
+  border-radius:999px;
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:.04em;
+}
+.mistake-list > .kana-row-head:first-child{margin-top:4px;}
+
 /* ---------- シグナル認識モード ---------- */
 /* ピクトグラムは重なりを分離するために白フチ(HALO)を敷いてあるので、
    図の下地は白にしておく(生成側 generate_signals.py の HALO と対応)。

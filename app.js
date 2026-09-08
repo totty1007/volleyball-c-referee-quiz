@@ -218,7 +218,13 @@
         return res.json();
       })
       .then(json => {
-        FOULS = (json.fouls || []).slice();
+        // 反則一覧はあいうえお順で見せる(名称で引けないと探せないため)。
+        // 並べ替えのキーは fouls.json の yomi。localeCompare の "ja" 照合は
+        // 濁音・半濁音も五十音順に扱う。fouls.json 自体もあいうえお順で
+        // 保存してあるが、追記されたものが自動で正しい位置に入るよう
+        // 実行時にも並べ替えている。
+        FOULS = (json.fouls || []).slice().sort((a, b) =>
+          String(a.yomi || a.name).localeCompare(String(b.yomi || b.name), "ja"));
         if (state.screen === "home") renderHome();
       })
       .catch(() => {
@@ -775,25 +781,52 @@
   }
 
   // ---------------- 反則一覧＆反則クイズ ----------------
+  // あいうえお順の一覧に「あ行」「か行」…の見出しを差し込むための対応表。
+  // 濁音・半濁音は清音と同じ行に入れる(五十音表と同じ扱い)。
+  const KANA_ROWS = [
+    ["あ", "あいうえおぁぃぅぇぉ"],
+    ["か", "かきくけこがぎぐげご"],
+    ["さ", "さしすせそざじずぜぞ"],
+    ["た", "たちつてとだぢづでどっ"],
+    ["な", "なにぬねの"],
+    ["は", "はひふへほばびぶべぼぱぴぷぺぽ"],
+    ["ま", "まみむめも"],
+    ["や", "やゆよゃゅょ"],
+    ["ら", "らりるれろ"],
+    ["わ", "わをんゎ"],
+  ];
+
+  function kanaRowLabel(yomi) {
+    const c = String(yomi || "").charAt(0);
+    const row = KANA_ROWS.find(pair => pair[1].indexOf(c) >= 0);
+    return row ? row[0] + "行" : "その他";
+  }
+
   // fouls.json(反則の名称＋説明の一覧)を①そのまま読み物として表示する画面と、
   // ②その一覧データから自動生成する一問一答クイズの2つを提供する。
   // クイズ問題はquestions.jsonのような静的データではなく、fouls.jsonの
   // name/descriptionから実行時に組み立てる(シグナル認識モードと同じ考え方)。
   function renderFoulList() {
     state.screen = "foulList";
-    const cardsHtml = FOULS.map(f => `
+    let lastRow = "";
+    const cardsHtml = FOULS.map(f => {
+      const row = kanaRowLabel(f.yomi);
+      const head = row === lastRow ? "" : `<p class="kana-row-head">${escapeHtml(row)}</p>`;
+      lastRow = row;
+      return `${head}
       <div class="mistake-item foul-card">
         <p class="mi-q">${escapeHtml(f.name)}</p>
         <p>${escapeHtml(f.description)}</p>
-      </div>
-    `).join("");
+      </div>`;
+    }).join("");
 
     APP.innerHTML = `
       <p class="section-title">反則一覧(${FOULS.length}件)</p>
       <div class="notice-banner">
-        プレー中に起きる主な反則を、名称と説明でまとめた一覧です。questions.jsonの出題・解説と同じ内容を
-        再編集したもので、新しい未確認情報は加えていません。下の「反則クイズに挑戦」から、この一覧をもとに
-        した一問一答クイズにも挑戦できます。
+        プレー中に起きる主な反則と、それに関わる規則を<strong>あいうえお順</strong>にまとめた一覧です
+        (名称で引けるように並べています)。questions.jsonの出題・解説、または規則書「公式ハンドシグナル」の
+        見出しと同じ内容を再編集したもので、新しい未確認情報は加えていません。下の「反則クイズに挑戦」から、
+        この一覧をもとにした一問一答クイズにも挑戦できます。
       </div>
       <div class="mistake-list">${cardsHtml}</div>
       <div class="result-actions">
