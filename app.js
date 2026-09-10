@@ -868,11 +868,20 @@
       `<li><span class="exam-cno">${circled(i + 1)}</span>${escapeHtml(c)}</li>`).join("")}</ul>`;
   }
 
-  function examSelect(key, count) {
+  // choices に配列を渡すと「① アタック」のように中身も出す。番号だけだと
+  // 語群まで視線を往復しないと選べず、解答に時間がかかる。
+  // 数値を渡した場合は番号だけ(問4のハンドシグナルは図が選択肢なので、
+  // ここに名前を出すと答えが分かってしまう)。
+  function examSelect(key, choices) {
+    const list = Array.isArray(choices) ? choices : null;
+    const count = list ? list.length : choices;
     const opts = ['<option value="">—</option>'].concat(
-      Array.from({ length: count }, (_, i) =>
-        `<option value="${i + 1}">${circled(i + 1)}</option>`)).join("");
-    return `<select class="${EXAM_INPUT} exam-sel" data-key="${key}">${opts}</select>`;
+      Array.from({ length: count }, (_, i) => {
+        const text = list ? `${circled(i + 1)} ${list[i]}` : circled(i + 1);
+        return `<option value="${i + 1}">${escapeHtml(text)}</option>`;
+      })).join("");
+    const cls = list ? "exam-sel exam-sel-wide" : "exam-sel";
+    return `<select class="${EXAM_INPUT} ${cls}" data-key="${key}">${opts}</select>`;
   }
 
   function renderExamBlock(sec, block, si, bi) {
@@ -882,7 +891,7 @@
       const rows = block.items.map((it, k) => `
         <div class="exam-blank">
           <span class="exam-blank-label">( ${escapeHtml(it.label)} )</span>
-          ${examSelect(`${key}-${k}`, block.choices.length)}
+          ${examSelect(`${key}-${k}`, block.choices)}
         </div>`).join("");
       return `${head}${examChoiceList(block.choices)}
         <div class="exam-blank-grid${block.compact ? " compact" : ""}">${rows}</div>`;
@@ -1005,12 +1014,17 @@
     let correctItems = 0;
     const secResults = [];
 
+    // 採点結果には「どんな問題だったか」も残す。番号だけ並べても、
+    // 何を聞かれて何を選んだのかが後から分からず復習にならない。
     EXAM.sections.forEach((sec, si) => {
       let sCorrect = 0, sItems = 0, sScore = 0, sMax = 0;
-      const detail = [];
+      const blockResults = [];
       sec.blocks.forEach((block, bi) => {
         const key = `${si}-${bi}`;
         const pt = examItemPoints(block);
+        const detail = [];
+        const choiceText = i => (block.choices && block.choices[i - 1]) || "";
+
         if (block.kind === "fill" || block.kind === "signal") {
           block.items.forEach((it, k) => {
             const mine = got[`${key}-${k}`];
@@ -1018,10 +1032,9 @@
             sItems++; sMax += pt;
             if (ok) { sCorrect++; sScore += pt; }
             detail.push({
-              label: it.label, ok: ok,
-              mine: mine ? circled(mine) : "無解答",
-              right: circled(it.answer),
-              rightText: block.choices ? block.choices[it.answer - 1] : "",
+              label: it.label, ok: ok, qtext: it.text || "",
+              mine: mine ? circled(mine) + (choiceText(mine) ? " " + choiceText(mine) : "") : "無解答",
+              right: circled(it.answer) + (choiceText(it.answer) ? " " + choiceText(it.answer) : ""),
               note: it.note,
             });
           });
@@ -1032,9 +1045,9 @@
             sItems++; sMax += pt;
             if (ok) { sCorrect++; sScore += pt; }
             detail.push({
-              label: `(${k + 1})`, ok: ok,
+              label: `(${k + 1})`, ok: ok, qtext: it.text,
               mine: mine === "o" ? "○" : mine === "x" ? "×" : "無解答",
-              right: it.answer ? "○" : "×", rightText: "", note: it.note,
+              right: it.answer ? "○" : "×", note: it.note,
             });
           });
         } else if (block.kind === "choice") {
@@ -1043,9 +1056,9 @@
           sItems++; sMax += pt;
           if (ok) { sCorrect++; sScore += pt; }
           detail.push({
-            label: `(${bi + 1})`, ok: ok,
-            mine: mine ? circled(mine) : "無解答",
-            right: circled(block.answer), rightText: block.choices[block.answer - 1],
+            label: "", ok: ok, qtext: block.prompt || "",
+            mine: mine ? circled(mine) + " " + choiceText(mine) : "無解答",
+            right: circled(block.answer) + " " + choiceText(block.answer),
             note: block.note,
           });
         } else if (block.kind === "multi") {
@@ -1060,16 +1073,25 @@
           sCorrect += gain; sScore += gain * pt;
           detail.push({
             label: "", ok: gain === block.pick,
+            qtext: block.prompt || sec.lead || "",
             mine: mine.length ? mine.sort((a, b) => a - b).map(circled).join(" ") : "無解答",
-            right: block.answer.map(circled).join(" "), rightText: "",
+            right: block.answer.map(circled).join(" "),
             note: block.note,
             sub: `正解 ${hit} / 余分に選んだ ${over} → ${gain} 項目分の加点`,
+            // 選択肢そのものを一覧で出す。番号だけでは何を選んだのか分からない。
+            choiceList: (block.choices || []).map((c, i) => ({
+              no: circled(i + 1), text: c,
+              isAnswer: block.answer.indexOf(i + 1) >= 0,
+              picked: mine.indexOf(i + 1) >= 0,
+            })),
           });
         }
+        blockResults.push({ prompt: block.prompt || "", kind: block.kind, detail: detail });
       });
       score += sScore; correctItems += sCorrect;
-      secResults.push({ no: sec.no, title: sec.title, correct: sCorrect, items: sItems,
-                        score: sScore, max: sMax, detail: detail });
+      secResults.push({ no: sec.no, title: sec.title, lead: sec.lead,
+                        correct: sCorrect, items: sItems,
+                        score: sScore, max: sMax, blocks: blockResults });
     });
 
     const total = EXAM.meta.totalPoints;
@@ -1083,20 +1105,31 @@
         <span class="bd-val">${r.correct}/${r.items}項目 ${Math.round(r.score * 10) / 10}/${Math.round(r.max * 10) / 10}点</span>
       </div>`).join("");
 
+    const itemHtml = d => `
+      <div class="exam-review-item ${d.ok ? "ok" : "ng"}">
+        ${d.qtext ? `<p class="exam-review-q">${d.label ? `<span class="exam-review-label">${escapeHtml(d.label)}</span>` : ""}${escapeHtml(d.qtext)}</p>` : ""}
+        ${d.choiceList ? `<ul class="exam-review-choices">${d.choiceList.map(c => `
+            <li class="${c.isAnswer ? "is-answer" : ""}${c.picked ? " is-picked" : ""}">
+              <span class="exam-cno">${c.no}</span><span class="exam-review-ctext">${escapeHtml(c.text)}</span>
+              ${c.isAnswer ? '<span class="exam-review-tag ans">正解</span>' : ""}
+              ${c.picked ? '<span class="exam-review-tag pick">選んだ</span>' : ""}
+            </li>`).join("")}</ul>` : ""}
+        <p class="exam-review-head">
+          <span class="exam-review-mark">${d.ok ? "正解" : "不正解"}</span>
+          ${!d.qtext && d.label ? `<span class="exam-review-label">${escapeHtml(d.label)}</span>` : ""}
+          <span>あなたの解答: ${escapeHtml(d.mine)}</span>
+          <span>正解: ${escapeHtml(d.right)}</span>
+        </p>
+        ${d.sub ? `<p class="exam-review-sub">${escapeHtml(d.sub)}</p>` : ""}
+        ${d.note ? `<p>${escapeHtml(d.note)}</p>` : ""}
+      </div>`;
+
     const detailHtml = secResults.map(r => `
       <div class="exam-review">
         <p class="exam-sec-head"><span>${escapeHtml(r.no)}</span>${escapeHtml(r.title)}</p>
-        ${r.detail.map(d => `
-          <div class="exam-review-item ${d.ok ? "ok" : "ng"}">
-            <p class="exam-review-head">
-              <span class="exam-review-mark">${d.ok ? "正解" : "不正解"}</span>
-              ${d.label ? `<span class="exam-review-label">${escapeHtml(d.label)}</span>` : ""}
-              <span>あなたの解答: ${escapeHtml(d.mine)} ／ 正解: ${escapeHtml(d.right)}${
-                d.rightText ? `（${escapeHtml(d.rightText)}）` : ""}</span>
-            </p>
-            ${d.sub ? `<p class="exam-review-sub">${escapeHtml(d.sub)}</p>` : ""}
-            ${d.note ? `<p>${escapeHtml(d.note)}</p>` : ""}
-          </div>`).join("")}
+        ${r.blocks.map(b => `
+          ${b.prompt ? `<p class="exam-review-prompt">${escapeHtml(b.prompt)}</p>` : ""}
+          ${b.detail.map(itemHtml).join("")}`).join("")}
       </div>`).join("");
 
     APP.innerHTML = `
@@ -1109,7 +1142,7 @@
       </div>
       <p class="section-title">問別の得点</p>
       <div class="breakdown">${bars}</div>
-      <p class="section-title">解答と解説</p>
+      <p class="section-title">問題・解答と解説</p>
       ${detailHtml}
       <div class="result-actions">
         <button class="btn btn-primary" id="btn-exam-again">もう一度解く</button>

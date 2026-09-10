@@ -441,17 +441,20 @@ button:focus-visible{
 .exam-cno{color:var(--volley-blue); font-weight:700; flex:none;}
 
 /* 空欄の解答欄 */
+/* 選択肢の中身まで出すプルダウンは幅が要るので、1列を広めに取る。
+   問2の語群は数字だけなので compact で詰める。 */
 .exam-blank-grid{
-  display:grid; grid-template-columns:repeat(auto-fill, minmax(104px, 1fr)); gap:8px;
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(236px, 1fr)); gap:8px;
 }
-.exam-blank-grid.compact{grid-template-columns:repeat(auto-fill, minmax(96px, 1fr));}
+.exam-blank-grid.compact{grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));}
 .exam-blank{display:flex; align-items:center; gap:6px;}
-.exam-blank-label{font-size:13px; font-weight:700; color:var(--incorrect);}
+.exam-blank-label{font-size:13px; font-weight:700; color:var(--incorrect); flex:none;}
 .exam-sel{
   font-size:15px; padding:4px 6px;
   border:1.5px solid #C9BFA8; border-radius:6px;
-  background:#FFFFFF; color:var(--ink); min-width:58px;
+  background:#FFFFFF; color:var(--ink); min-width:58px; max-width:100%;
 }
+.exam-sel-wide{flex:1 1 auto; min-width:0;}
 
 /* 4択・複数選択 */
 .exam-opts{display:flex; flex-direction:column; gap:6px;}
@@ -498,7 +501,33 @@ button:focus-visible{
 .exam-review-item.ng{border-left-color:var(--incorrect); background:#FBEAEC;}
 .exam-review-item p{margin:0 0 4px;}
 .exam-review-item p:last-child{margin-bottom:0;}
-.exam-review-head{display:flex; flex-wrap:wrap; gap:8px; align-items:baseline;}
+/* 採点結果に問題文も出す。番号だけ並べても何を聞かれたか分からず復習にならない。 */
+.exam-review-prompt{
+  margin:14px 0 6px; font-size:13px; font-weight:700; color:var(--ink);
+  padding-left:10px; border-left:3px solid var(--volley-blue);
+}
+.exam-review-q{font-weight:700;}
+.exam-review-choices{
+  list-style:none; margin:4px 0 6px; padding:0; font-size:12.5px; line-height:1.7;
+}
+.exam-review-choices li{
+  display:flex; gap:5px; align-items:baseline; flex-wrap:wrap;
+  padding:3px 6px; border-radius:5px;
+}
+/* 番号と本文を同じ行に置く。本文を素のテキストノードのままにすると、
+   長い選択肢で番号だけが上の行に取り残される。 */
+.exam-review-ctext{flex:1 1 0; min-width:0;}
+/* flex-basis を auto にすると、本文の内容幅が残り幅を超えた時点で
+   折り返しが先に起きて番号だけ上の行に取り残される。0 にして
+   「まず縮める」挙動にしておく。 */
+.exam-review-choices li.is-answer{background:rgba(31,122,69,.12);}
+.exam-review-choices li.is-picked{outline:1.5px solid rgba(15,31,51,.25);}
+.exam-review-tag{
+  font-size:10.5px; font-weight:700; padding:0 6px; border-radius:999px; flex:none;
+}
+.exam-review-tag.ans{background:#1F7A45; color:#FFFFFF;}
+.exam-review-tag.pick{background:var(--volley-blue); color:#FFFFFF;}
+.exam-review-head{display:flex; flex-wrap:wrap; gap:8px 14px; align-items:baseline;}
 .exam-review-mark{font-weight:700;}
 .exam-review-item.ok .exam-review-mark{color:#1F7A45;}
 .exam-review-item.ng .exam-review-mark{color:var(--incorrect);}
@@ -508,7 +537,8 @@ button:focus-visible{
 @media(max-width:560px){
   .exam-section{padding:12px 12px 16px;}
   .exam-choices{grid-template-columns:1fr 1fr;}
-  .exam-blank-grid{grid-template-columns:repeat(auto-fill, minmax(88px, 1fr));}
+  .exam-blank-grid{grid-template-columns:1fr;}
+  .exam-blank-grid.compact{grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));}
   .exam-case, .exam-tf{flex-wrap:wrap;}
   .exam-case-text, .exam-tf .exam-case-text{flex:1 1 100%;}
   .exam-case .exam-sel, .exam-tf-btns{margin-left:34px;}
