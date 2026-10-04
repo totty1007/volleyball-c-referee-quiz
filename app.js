@@ -633,11 +633,9 @@
   // 状態(sigState)を用意する。localStorageへの正誤記録(recordAnswer)は
   // カテゴリ別正答率の意味を薄めてしまうため行わず、自己ベストのみ保存する。
 
-  // 図(signal.svg)は学習画面と出題画面で同じものを使う。図中の数字バッジ・
-  // ネットなどの文脈・動きの矢印は「どのシグナルかを識別する情報」なので、
-  // 出題時にも必要だからである(図に反則名は書かれていない)。
-  // 学習と出題の差は、図の表示サイズ(style.css)と、図に添える説明文を
-  // HTML側で出すかどうかで付けている。
+  // 図(signal.image, images/signals/配下のイラスト)は学習画面と出題画面で
+  // 同じものを使う(図に反則名は書かれていない)。学習と出題の差は、図の
+  // 表示サイズ(style.css)と、図に添える説明文をHTML側で出すかどうかで付けている。
 
   // 学習画面: 全シグナルを図＋名称＋動作説明で一覧する。ここから出題へ進む。
   function renderSignalList() {
@@ -647,8 +645,8 @@
     // (「一覧に反則名称も画像と合わせて載せてほしい」2026-08-28の指摘)。
     const cardsHtml = SIGNALS.map((s, i) => `
       <div class="signal-study-card">
-        <div class="signal-study-fig${s.wide ? " is-wide" : ""}">
-          <div class="signal-study-svg">${s.svg}</div>
+        <div class="signal-study-fig">
+          <div class="signal-study-svg"><img src="${s.image}" alt="${escapeHtml(s.name)}"></div>
           <p class="signal-study-name">${i + 1}. ${escapeHtml(s.name)}</p>
         </div>
         <div class="signal-study-body">
@@ -673,11 +671,8 @@
     APP.innerHTML = `
       <p class="section-title">ハンドシグナル一覧(${SIGNALS.length}件)</p>
       <div class="notice-banner">
-        図は規則書の動作説明文をもとに独自に描き起こした<strong>オリジナルの簡易図</strong>で、公式のイラストそのものではありません。
-        指の本数を示す<strong>青い数字バッジ</strong>・<strong>青い動きの矢印</strong>・<strong>①②の順番チップ</strong>・
-        <strong>薄い破線の開始姿勢</strong>・手のひら側に付けた<strong>明るい面</strong>は、覚えやすさのためにこのアプリが独自に足した
-        表現で、実際のハンドシグナルには含まれません。ネット・フロアー・センターライン・アンテナは、そのシグナルが「何を指しているか」を
-        示すために描き添えたものです。実際の細かい所作は必ず公式の審判実技マニュアルの図で確認してください。
+        図は規則書の動作説明文をもとに作成した<strong>オリジナルのイラスト</strong>で、公式のイラストそのものではありません。
+        実際の細かい所作は必ず公式の審判実技マニュアルの図で確認してください。
       </div>
       ${legendHtml}
       <div class="signal-study-list">${cardsHtml}</div>
@@ -710,9 +705,6 @@
   }
 
   function renderSignalQuestion() {
-    // 注意: item.signal.svg は escapeHtml() を通さずそのまま挿入する。
-    // signals.json はユーザー入力ではなく、ビルド時のスクリプト(_gen_signals.py)
-    // が生成した信頼できるSVGマークアップであり、意図的にHTMLとして描画する。
     const item = sigState.queue[sigState.index];
     const total = sigState.queue.length;
     const pct = Math.round((sigState.index / total) * 100);
@@ -727,12 +719,12 @@
       `).join("");
       bodyHtml = `
         <p class="q-text">このシグナルが示す反則・合図は次のうちどれか。</p>
-        <div class="signal-figure-wrap${item.signal.wide ? " is-wide" : ""}">${item.signal.svg}</div>
+        <div class="signal-figure-wrap"><img src="${item.signal.image}" alt=""></div>
         <div class="choices" id="choices">${choicesHtml}</div>
       `;
     } else {
       const thumbsHtml = item.choiceSignals.map((s, i) => `
-        <button class="signal-thumb-btn${s.wide ? " is-wide" : ""}" data-index="${i}">${s.svg}</button>
+        <button class="signal-thumb-btn" data-index="${i}"><img src="${s.image}" alt=""></button>
       `).join("");
       bodyHtml = `
         <p class="q-text">「${escapeHtml(item.signal.name)}」を示す図は次のうちどれか。</p>
@@ -809,7 +801,7 @@
       ? `<p style="color:var(--muted)">間違えたシグナルはありませんでした。お見事です。</p>`
       : sigState.mistakes.map(s => `
           <div class="mistake-item">
-            <div class="signal-figure-wrap" style="max-width:150px;margin:0 0 8px;">${s.svg}</div>
+            <div class="signal-figure-wrap" style="max-width:150px;margin:0 0 8px;"><img src="${s.image}" alt="${escapeHtml(s.name)}"></div>
             <p class="mi-q">${escapeHtml(s.name)}</p>
             <p style="color:var(--ink);font-weight:500;font-size:13px;">${escapeHtml(s.hint || "")}</p>
           </div>
@@ -922,7 +914,7 @@
         const s = (SIGNALS || []).find(x => x.id === sid);
         return `<div class="exam-sigfig">
             <span class="exam-cno">${circled(i + 1)}</span>
-            <div class="exam-sigfig-svg">${s ? s.svg : ""}</div>
+            <div class="exam-sigfig-svg">${s ? `<img src="${s.image}" alt="">` : ""}</div>
           </div>`;
       }).join("");
       const rows = block.items.map((it, k) => `
