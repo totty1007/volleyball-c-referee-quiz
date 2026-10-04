@@ -12,6 +12,7 @@
   const STORAGE_SIGNAL_BEST = "vcRef_signal_best_v1"; // シグナル認識の自己ベスト
   const STORAGE_FOUL_BEST = "vcRef_foul_best_v1";     // 反則クイズの自己ベスト
   const STORAGE_EXAM_BEST = "vcRef_exam06_best_v1";   // 模擬審査会の自己ベスト(点数)
+  const STORAGE_FLOW = "vcRef_flow_v1";               // 試合の流れ(MODE 07)のアプリ内編集結果
   const EXAM_SIZE = 25;
   const EXAM_TIME_SEC = 20 * 60; // 20分
   const PRACTICE_LETTERS = ["A", "B", "C", "D", "E"];
@@ -25,6 +26,10 @@
   let FOULS = null;         // fouls.json の内容(取得できない場合はnullのまま)
   let EXAM = null;          // exam.json の内容(模擬審査会。取得できない場合はnullのまま)
   let EXAM_FIGURES = null;  // exam_figures.json の figures(コート図・ローテーション図)
+  let FLOW = null;          // 画面に表示する試合の流れ(アプリ内で編集していればその内容)
+  let FLOW_BASE = null;     // flow.json そのもの(編集を取り消したときに戻す初期内容)
+  let flowEdit = null;      // 編集画面の作業コピー。保存するまで FLOW には反映しない
+  let flowMessage = "";     // 保存・書き出し・読み込みの結果を1回だけ画面に出すための文言
 
   let state = {
     screen: "loading",
@@ -272,6 +277,26 @@
       .catch(() => {
         FOULS = null;
       });
+
+    // 試合の流れ(MODE 07)も任意機能。読み物だけの画面なので、取得に失敗しても
+    // ホーム画面でカードを無効表示にするだけにする。
+    fetch("flow.json", { cache: "no-store" })
+      .then(res => {
+        if (!res.ok) throw new Error("flow.json の取得に失敗しました");
+        return res.json();
+      })
+      .then(json => {
+        FLOW_BASE = json;
+        // この端末で編集した内容があればそれを優先して表示する。
+        // 壊れた内容が保存されていた場合は同梱の flow.json に戻す。
+        const saved = loadFlowOverride();
+        FLOW = saved || json;
+        if (state.screen === "home") renderHome();
+      })
+      .catch(() => {
+        FLOW = null;
+        FLOW_BASE = null;
+      });
   }
 
   // ---------------- ホーム画面 ----------------
@@ -300,6 +325,17 @@
       ? (foulBest
           ? `自己ベスト: ${foulBest.correct} / ${foulBest.total} 問。反則の名称と説明の一覧を見てから、一問一答で覚えられます。`
           : `プレー中の反則を名称と説明でまとめた一覧(${FOULS.length}件)。一覧を見てから、そこから出題される一問一答クイズにも挑戦できます。`)
+      : "読み込み中、またはこの端末では利用できません。";
+
+    // 試合の流れは覚える数値(公式ウォームアップ6分・インターバル3分など)が
+    // 要なので、カードの説明にも数値が載っていることが分かる文言を出す。
+    const flowReady = !!(FLOW && Array.isArray(FLOW.phases) && FLOW.phases.length > 0);
+    const flowStepCount = flowReady
+      ? FLOW.phases.reduce((n, ph) => n + (ph.steps ? ph.steps.length : 0), 0)
+      : 0;
+    const flowEdited = flowReady && !!(FLOW.meta && FLOW.meta.editedInApp);
+    const flowCardBody = flowReady
+      ? `試合前の公式ウォームアップやセット間のインターバルなど、審判から見た試合1件分の進行を${FLOW.phases.length}場面・${flowStepCount}項目にまとめた読み物です。覚える分数・回数つき。アプリ内で書き換えられます。${flowEdited ? "(この端末で編集済み)" : ""}`
       : "読み込み中、またはこの端末では利用できません。";
 
     const catPills = DATA.categories.map(c => {
@@ -355,6 +391,11 @@
           <h2>模擬審査会(本番形式)</h2>
           <p>${examCardBody}</p>
         </button>
+        <button class="mode-card" id="btn-flow" ${flowReady ? "" : "disabled"}>
+          <span class="num">MODE 07</span>
+          <h2>試合の流れ</h2>
+          <p>${flowCardBody}</p>
+        </button>
         <div class="mode-card" style="cursor:default;">
           <span class="num">STATUS</span>
           <h2>学習の記録</h2>
@@ -384,6 +425,9 @@
     }
     if (examReady) {
       document.getElementById("btn-exam06").addEventListener("click", renderExam);
+    }
+    if (flowReady) {
+      document.getElementById("btn-flow").addEventListener("click", renderFlow);
     }
     document.getElementById("btn-practice").addEventListener("click", () => {
       window.scrollTo({ top: document.getElementById("cat-list").offsetTop - 100, behavior: "smooth" });
@@ -1350,6 +1394,415 @@
     document.getElementById("btn-back-list").addEventListener("click", renderFoulList);
     document.getElementById("btn-foul-retry").addEventListener("click", startFoulQuiz);
     window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  // ---------------- 試合の流れ(MODE 07) ----------------
+  // クイズではなく読み物の画面。筆記試験では「公式ウォームアップは何分間か」
+  // 「セット間のインターバルは何分間か」のように数値がそのまま問われるので、
+  // 各項目の数値(key)を見出しの横にバッジで出し、流し読みでも数字だけは
+  // 拾えるようにしてある。
+  //
+  // この画面だけは中身をアプリ内で書き換えられるようにしてある。規則の改定や
+  // 大会要項に合わせて手元で直したくなるのがこの画面だからで、編集結果は
+  // localStorage に保存する。ただし保存先はその端末のブラウザだけなので、
+  // 全員に配る内容を変えるときは JSON を書き出してリポジトリの flow.json を
+  // 差し替える(静的サイトでサーバーを持たないため、この2段構えにしている)。
+
+  function isValidFlow(obj) {
+    return !!(obj && Array.isArray(obj.phases) && obj.phases.length > 0 &&
+      obj.phases.every(ph => ph && typeof ph.title === "string" && Array.isArray(ph.steps)));
+  }
+
+  function loadFlowOverride() {
+    try {
+      const raw = localStorage.getItem(STORAGE_FLOW);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      return isValidFlow(obj) ? obj : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveFlowOverride(obj) {
+    // プライベートブラウズや容量超過で保存できないことがある。
+    // 保存できたかどうかを呼び出し側に返して、画面に出し分ける。
+    try {
+      localStorage.setItem(STORAGE_FLOW, JSON.stringify(obj));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function clearFlowOverride() {
+    try {
+      localStorage.removeItem(STORAGE_FLOW);
+    } catch (e) { /* 消せなくても表示は初期内容に戻す */ }
+  }
+
+  function cloneFlow(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
+
+  function todayStamp() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function flowStepCountOf(obj) {
+    return obj.phases.reduce((n, ph) => n + (ph.steps ? ph.steps.length : 0), 0);
+  }
+
+  function renderFlow() {
+    state.screen = "flow";
+
+    const edited = !!(FLOW.meta && FLOW.meta.editedInApp);
+    const baseVersion = (FLOW_BASE && FLOW_BASE.meta && FLOW_BASE.meta.lastUpdated) || "";
+    // 編集内容を保存したあとにアプリ側の flow.json が更新されることがある。
+    // 黙って古い内容を見せ続けないよう、ズレていることを画面で知らせる。
+    const baseUpdated = edited && FLOW.meta.baseVersion && baseVersion &&
+      FLOW.meta.baseVersion !== baseVersion;
+
+    const phasesHtml = FLOW.phases.map((ph, i) => {
+      const steps = (ph.steps || []).map(st => {
+        const keyChip = st.key
+          ? `<span class="flow-key">${escapeHtml(st.key)}</span>`
+          : "";
+        const note = st.note
+          ? `<p class="flow-note">${escapeHtml(st.note)}</p>`
+          : "";
+        return `<li class="flow-step">
+          <div class="flow-step-head">
+            <p class="flow-step-title">${escapeHtml(st.title)}</p>
+            ${keyChip}
+          </div>
+          <p class="flow-who">${escapeHtml(st.who)}</p>
+          <p class="flow-detail">${escapeHtml(st.detail)}</p>
+          ${note}
+        </li>`;
+      }).join("");
+
+      return `<section class="flow-phase">
+        <div class="flow-phase-head">
+          <span class="flow-phase-num">${i + 1}</span>
+          <h3>${escapeHtml(ph.title)}</h3>
+        </div>
+        <p class="flow-phase-lead">${escapeHtml(ph.lead)}</p>
+        <ol class="flow-steps">${steps}</ol>
+      </section>`;
+    }).join("");
+
+    // 数値だけを先に一覧できる早見表。本文を読まなくても、試験前に
+    // ここだけ見直せば数字の確認ができる。
+    const numbersHtml = FLOW.phases.flatMap(ph =>
+      (ph.steps || []).filter(st => st.key).map(st =>
+        `<li><span class="flow-key">${escapeHtml(st.key)}</span>${escapeHtml(st.title)}</li>`)
+    ).join("");
+
+    const messageHtml = flowMessage
+      ? `<div class="flow-message">${escapeHtml(flowMessage)}</div>`
+      : "";
+    flowMessage = "";
+
+    const editedHtml = edited
+      ? `<div class="flow-edited-banner">
+          この端末で編集した内容を表示しています(最終更新 ${escapeHtml(FLOW.meta.lastUpdated || "-")}・${FLOW.phases.length}場面 ${flowStepCountOf(FLOW)}項目)。
+          編集内容はこのブラウザにだけ保存されます。他の端末や他の人にも反映するには、「JSONを書き出す」で保存したファイルでリポジトリの flow.json を差し替えてください。
+          ${baseUpdated ? `<br><strong>アプリに同梱された内容が更新されています(${escapeHtml(FLOW.meta.baseVersion)} → ${escapeHtml(baseVersion)})。「初期内容に戻す」で最新の同梱内容に切り替わります。</strong>` : ""}
+        </div>`
+      : "";
+
+    APP.innerHTML = `
+      <p class="section-title">試合の流れ(${FLOW.phases.length}場面)</p>
+      <div class="notice-banner">
+        審判から見た試合1件分の進行を、<strong>担当者</strong>と<strong>覚える数値</strong>つきで時系列に並べた読み物です。
+        内容はこのアプリの出題・解説を再編集したもので、公式ウォームアップの分数のみ
+        (公財)日本バレーボール協会「2026年度版 バレーボール6人制競技規則」の条文を出典としています。
+        <strong>入場・整列・あいさつの段取りや公式ウォームアップの実際の持ち時間は大会要項で決められていることが多い</strong>ので、
+        担当する大会の要項を必ず確認してください。
+      </div>
+      ${messageHtml}
+      ${editedHtml}
+
+      <div class="flow-toolbar">
+        <button class="btn btn-primary" id="btn-flow-edit">内容を編集する</button>
+        <button class="btn btn-ghost" id="btn-flow-export">JSONを書き出す</button>
+        <button class="btn btn-ghost" id="btn-flow-import">JSONを読み込む</button>
+        ${edited ? `<button class="btn btn-ghost" id="btn-flow-reset">初期内容に戻す</button>` : ""}
+        <input type="file" id="flow-import-file" accept="application/json,.json" hidden>
+      </div>
+
+      <p class="section-title">数値・タイミングの早見表</p>
+      <ul class="flow-numbers">${numbersHtml}</ul>
+
+      <div class="flow-list">${phasesHtml}</div>
+
+      <div class="result-actions">
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    document.getElementById("btn-flow-edit").addEventListener("click", startFlowEdit);
+    document.getElementById("btn-flow-export").addEventListener("click", exportFlow);
+
+    const fileInput = document.getElementById("flow-import-file");
+    document.getElementById("btn-flow-import").addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files && fileInput.files[0]) importFlowFile(fileInput.files[0]);
+    });
+
+    const resetBtn = document.getElementById("btn-flow-reset");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        if (!window.confirm("この端末で編集した内容を消して、アプリに同梱された内容に戻します。よろしいですか。")) return;
+        clearFlowOverride();
+        FLOW = cloneFlow(FLOW_BASE);
+        flowMessage = "初期内容に戻しました。";
+        renderFlow();
+      });
+    }
+
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  // ---- 書き出し・読み込み ----
+  function exportFlow() {
+    try {
+      const text = JSON.stringify(FLOW, null, 2) + "\n";
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "flow.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      flowMessage = "flow.json を書き出しました。リポジトリの flow.json を差し替えると、全員の画面に反映されます。";
+    } catch (e) {
+      flowMessage = "書き出せませんでした: " + e.message;
+    }
+    renderFlow();
+  }
+
+  function importFlowFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(String(reader.result));
+        if (!isValidFlow(obj)) throw new Error("試合の流れ(flow.json)の形ではありません");
+        obj.meta = obj.meta || {};
+        obj.meta.editedInApp = true;
+        obj.meta.baseVersion = (FLOW_BASE && FLOW_BASE.meta && FLOW_BASE.meta.lastUpdated) || "";
+        FLOW = obj;
+        flowMessage = saveFlowOverride(obj)
+          ? `読み込みました(${obj.phases.length}場面 ${flowStepCountOf(obj)}項目)。`
+          : `読み込みました(${obj.phases.length}場面 ${flowStepCountOf(obj)}項目)。ただしこの端末では保存できないため、ページを閉じると元に戻ります。`;
+      } catch (e) {
+        flowMessage = "読み込めませんでした: " + e.message;
+      }
+      renderFlow();
+    };
+    reader.onerror = () => {
+      flowMessage = "ファイルを読めませんでした。";
+      renderFlow();
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  // ---- 編集画面 ----
+  function startFlowEdit() {
+    flowEdit = cloneFlow(FLOW);
+    renderFlowEditor();
+  }
+
+  // 画面の入力値を作業コピーに書き戻す。項目の追加・削除・並べ替えのたびに
+  // 画面を作り直すので、そのつど呼んで入力中の文字が消えないようにする。
+  function collectFlowEditor() {
+    APP.querySelectorAll("[data-f]").forEach(el => {
+      const pi = Number(el.dataset.p);
+      const field = el.dataset.f;
+      const value = el.value;
+      if (el.dataset.s === undefined) {
+        flowEdit.phases[pi][field] = value;
+      } else {
+        flowEdit.phases[pi].steps[Number(el.dataset.s)][field] = value;
+      }
+    });
+  }
+
+  function newFlowStep() {
+    return {
+      id: "s" + Date.now().toString(36),
+      title: "",
+      who: "",
+      key: "",
+      detail: "",
+      note: "",
+    };
+  }
+
+  function renderFlowEditor() {
+    state.screen = "flowEdit";
+
+    const phasesHtml = flowEdit.phases.map((ph, pi) => {
+      const steps = (ph.steps || []).map((st, si) => `
+        <li class="flow-edit-step">
+          <div class="flow-edit-stephead">
+            <span class="flow-edit-no">${pi + 1}-${si + 1}</span>
+            <span class="flow-edit-move">
+              <button type="button" class="btn-mini" data-act="step-up" data-pi="${pi}" data-si="${si}" ${si === 0 ? "disabled" : ""}>↑</button>
+              <button type="button" class="btn-mini" data-act="step-down" data-pi="${pi}" data-si="${si}" ${si === ph.steps.length - 1 ? "disabled" : ""}>↓</button>
+              <button type="button" class="btn-mini danger" data-act="step-del" data-pi="${pi}" data-si="${si}">削除</button>
+            </span>
+          </div>
+          <label class="flow-edit-field"><span>項目名</span>
+            <input type="text" data-p="${pi}" data-s="${si}" data-f="title" value="${escapeHtml(st.title)}" placeholder="例: 公式ウォームアップ(公式練習)"></label>
+          <label class="flow-edit-field"><span>担当</span>
+            <input type="text" data-p="${pi}" data-s="${si}" data-f="who" value="${escapeHtml(st.who)}" placeholder="例: ファーストレフェリー(主審)"></label>
+          <label class="flow-edit-field"><span>覚える数値(バッジ)</span>
+            <input type="text" data-p="${pi}" data-s="${si}" data-f="key" value="${escapeHtml(st.key)}" placeholder="例: 一緒に6分間 ／ 空欄ならバッジを出しません"></label>
+          <label class="flow-edit-field"><span>本文</span>
+            <textarea data-p="${pi}" data-s="${si}" data-f="detail" rows="4">${escapeHtml(st.detail)}</textarea></label>
+          <label class="flow-edit-field"><span>注記(大会要項で決まる事柄など)</span>
+            <textarea data-p="${pi}" data-s="${si}" data-f="note" rows="2" placeholder="空欄なら注記を出しません">${escapeHtml(st.note)}</textarea></label>
+        </li>`).join("");
+
+      return `<section class="flow-edit-phase">
+        <div class="flow-edit-phasehead">
+          <span class="flow-phase-num">${pi + 1}</span>
+          <span class="flow-edit-move">
+            <button type="button" class="btn-mini" data-act="phase-up" data-pi="${pi}" ${pi === 0 ? "disabled" : ""}>↑</button>
+            <button type="button" class="btn-mini" data-act="phase-down" data-pi="${pi}" ${pi === flowEdit.phases.length - 1 ? "disabled" : ""}>↓</button>
+            <button type="button" class="btn-mini danger" data-act="phase-del" data-pi="${pi}" ${flowEdit.phases.length === 1 ? "disabled" : ""}>この場面を削除</button>
+          </span>
+        </div>
+        <label class="flow-edit-field"><span>場面の名前</span>
+          <input type="text" data-p="${pi}" data-f="title" value="${escapeHtml(ph.title)}" placeholder="例: 試合前"></label>
+        <label class="flow-edit-field"><span>場面の説明</span>
+          <textarea data-p="${pi}" data-f="lead" rows="2">${escapeHtml(ph.lead)}</textarea></label>
+        <ol class="flow-edit-steps">${steps}</ol>
+        <button type="button" class="btn btn-ghost btn-small" data-act="step-add" data-pi="${pi}">＋ この場面に項目を追加</button>
+      </section>`;
+    }).join("");
+
+    APP.innerHTML = `
+      <p class="section-title">試合の流れを編集</p>
+      <div class="notice-banner">
+        編集した内容は<strong>この端末のブラウザにだけ保存</strong>されます(サーバーには送信されません)。
+        他の端末や他の人の画面にも反映するには、保存したあと一覧画面の「JSONを書き出す」でファイルを保存し、
+        リポジトリの <strong>flow.json</strong> を差し替えてください。
+        「初期内容に戻す」を押せば、いつでもアプリに同梱された内容に戻せます。
+      </div>
+      <div class="flow-edit-list" id="flow-edit-list">${phasesHtml}</div>
+      <div class="flow-toolbar">
+        <button type="button" class="btn btn-ghost" data-act="phase-add">＋ 場面を追加</button>
+      </div>
+      <div class="result-actions">
+        <button class="btn btn-primary" id="btn-flow-save">保存する</button>
+        <button class="btn btn-ghost" id="btn-flow-cancel">編集をやめる</button>
+      </div>
+    `;
+
+    // 追加・削除・並べ替えはボタンが毎回作り直されるので、画面全体で
+    // クリックを拾って data-act で振り分ける。
+    APP.addEventListener("click", onFlowEditorClick);
+    document.getElementById("btn-flow-save").addEventListener("click", saveFlowEdit);
+    document.getElementById("btn-flow-cancel").addEventListener("click", () => {
+      APP.removeEventListener("click", onFlowEditorClick);
+      flowEdit = null;
+      renderFlow();
+    });
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  function onFlowEditorClick(ev) {
+    const btn = ev.target.closest("[data-act]");
+    if (!btn || state.screen !== "flowEdit") return;
+    const act = btn.dataset.act;
+    const pi = Number(btn.dataset.pi);
+    const si = Number(btn.dataset.si);
+    collectFlowEditor();
+
+    if (act === "step-add") {
+      flowEdit.phases[pi].steps.push(newFlowStep());
+    } else if (act === "step-del") {
+      if (!window.confirm("この項目を削除します。よろしいですか。")) return;
+      flowEdit.phases[pi].steps.splice(si, 1);
+    } else if (act === "step-up") {
+      const steps = flowEdit.phases[pi].steps;
+      [steps[si - 1], steps[si]] = [steps[si], steps[si - 1]];
+    } else if (act === "step-down") {
+      const steps = flowEdit.phases[pi].steps;
+      [steps[si], steps[si + 1]] = [steps[si + 1], steps[si]];
+    } else if (act === "phase-add") {
+      flowEdit.phases.push({
+        id: "p" + Date.now().toString(36),
+        title: "",
+        lead: "",
+        steps: [newFlowStep()],
+      });
+    } else if (act === "phase-del") {
+      if (!window.confirm("この場面を項目ごと削除します。よろしいですか。")) return;
+      flowEdit.phases.splice(pi, 1);
+    } else if (act === "phase-up") {
+      const ps = flowEdit.phases;
+      [ps[pi - 1], ps[pi]] = [ps[pi], ps[pi - 1]];
+    } else if (act === "phase-down") {
+      const ps = flowEdit.phases;
+      [ps[pi], ps[pi + 1]] = [ps[pi + 1], ps[pi]];
+    } else {
+      return;
+    }
+    renderFlowEditor();
+  }
+
+  function saveFlowEdit() {
+    collectFlowEditor();
+
+    // 名前のない場面・項目は一覧で見出しが消えて読めなくなるので止める。
+    for (let pi = 0; pi < flowEdit.phases.length; pi++) {
+      const ph = flowEdit.phases[pi];
+      if (!String(ph.title).trim()) {
+        window.alert(`${pi + 1}番目の場面の名前が空です。名前を入れてから保存してください。`);
+        return;
+      }
+      for (let si = 0; si < ph.steps.length; si++) {
+        if (!String(ph.steps[si].title).trim()) {
+          window.alert(`${pi + 1}-${si + 1} の項目名が空です。名前を入れてから保存してください。`);
+          return;
+        }
+      }
+    }
+
+    flowEdit.phases.forEach(ph => {
+      ph.title = String(ph.title).trim();
+      ph.lead = String(ph.lead).trim();
+      ph.steps.forEach(st => {
+        st.title = String(st.title).trim();
+        st.who = String(st.who).trim();
+        st.key = String(st.key).trim();
+        st.detail = String(st.detail).trim();
+        st.note = String(st.note).trim();
+      });
+    });
+
+    flowEdit.meta = flowEdit.meta || {};
+    flowEdit.meta.lastUpdated = todayStamp();
+    flowEdit.meta.editedInApp = true;
+    flowEdit.meta.baseVersion = (FLOW_BASE && FLOW_BASE.meta && FLOW_BASE.meta.lastUpdated) || "";
+
+    const ok = saveFlowOverride(flowEdit);
+    FLOW = cloneFlow(flowEdit);
+    APP.removeEventListener("click", onFlowEditorClick);
+    flowEdit = null;
+    flowMessage = ok
+      ? "保存しました。この端末のブラウザに保存されています。"
+      : "この端末では保存できませんでした(プライベートブラウズなど)。表示は変わりますが、ページを閉じると元に戻ります。「JSONを書き出す」で手元に残してください。";
+    renderFlow();
   }
 
   // ---------------- 起動 ----------------

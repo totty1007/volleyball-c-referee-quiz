@@ -767,6 +767,223 @@ button:focus-visible{
 
 .result-actions{display:flex; gap:10px; flex-wrap:wrap;}
 
+/* ---------- 試合の流れ(MODE 07) ---------- */
+/* 筆記試験では分数・回数がそのまま問われるので、数値(.flow-key)は本文から
+   切り離して黄色のバッジで出す。画面の先頭にはその数値だけを集めた早見表を
+   置き、本文を読まなくても数字の確認だけはできるようにしてある。 */
+.flow-numbers{
+  list-style:none;
+  margin:16px 0 26px;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.flow-numbers li{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-size:13.5px;
+  color:var(--line);
+}
+.flow-key{
+  flex:none;
+  background:var(--volley-yellow);
+  color:var(--navy-deep);
+  border-radius:999px;
+  padding:3px 10px;
+  font-family:var(--font-mono);
+  font-size:12px;
+  font-weight:700;
+  line-height:1.5;
+  white-space:nowrap;
+}
+.flow-list{display:flex; flex-direction:column; gap:22px; margin:16px 0 26px;}
+.flow-phase-head{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:6px;
+}
+.flow-phase-num{
+  flex:none;
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  background:var(--volley-blue);
+  color:#FFFFFF;
+  font-family:var(--font-display);
+  font-size:15px;
+  font-weight:700;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.flow-phase-head h3{
+  margin:0;
+  font-family:var(--font-display);
+  font-size:18px;
+  letter-spacing:.04em;
+  color:var(--line);
+}
+.flow-phase-lead{margin:0 0 10px; font-size:13px; color:var(--muted);}
+/* 縦線で「上から下へ進む」ことを見せる。番号の丸はその線の上に乗せる。 */
+.flow-steps{
+  list-style:none;
+  margin:0;
+  padding:0 0 0 14px;
+  border-left:2px solid rgba(255,255,255,.18);
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.flow-step{
+  background:var(--card-bg);
+  color:var(--ink);
+  border-radius:10px;
+  padding:12px 14px;
+}
+.flow-step-head{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  margin-bottom:4px;
+}
+.flow-step-title{margin:0; font-weight:700; font-size:14px;}
+.flow-who{
+  margin:0 0 6px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--volley-blue);
+}
+.flow-detail{margin:0; font-size:13px; line-height:1.75; color:#3B4A5A;}
+.flow-note{
+  margin:8px 0 0;
+  padding:6px 10px;
+  background:#F3E7C6;
+  border-radius:8px;
+  font-size:12.5px;
+  line-height:1.7;
+  color:#7A4B00;
+}
+@media (max-width:480px){
+  .flow-numbers li{align-items:flex-start;}
+}
+
+/* ---------- 試合の流れ: アプリ内編集 ---------- */
+/* 静的サイトなので保存先はこの端末のブラウザだけ。全員に配るには書き出した
+   JSONで flow.json を差し替える、という2段構えを画面でも説明している。 */
+.flow-toolbar{display:flex; gap:10px; flex-wrap:wrap; margin:0 0 22px;}
+.flow-message{
+  margin:0 0 14px;
+  padding:10px 14px;
+  border-radius:10px;
+  background:rgba(76,154,106,.18);
+  border:1px solid rgba(76,154,106,.6);
+  font-size:13px;
+  line-height:1.7;
+}
+.flow-edited-banner{
+  margin:0 0 14px;
+  padding:10px 14px;
+  border-radius:10px;
+  background:rgba(242,183,5,.12);
+  border:1px solid rgba(242,183,5,.55);
+  font-size:12.5px;
+  line-height:1.7;
+}
+.flow-edited-banner strong{color:var(--volley-yellow);}
+.flow-edit-list{display:flex; flex-direction:column; gap:18px; margin:16px 0 18px;}
+.flow-edit-phase{
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:12px;
+  padding:14px;
+}
+.flow-edit-phasehead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.flow-edit-steps{
+  list-style:none;
+  margin:12px 0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.flow-edit-step{
+  background:var(--card-bg);
+  color:var(--ink);
+  border-radius:10px;
+  padding:12px;
+}
+.flow-edit-stephead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:8px;
+}
+.flow-edit-no{
+  font-family:var(--font-mono);
+  font-size:12px;
+  font-weight:700;
+  color:var(--volley-blue);
+}
+.flow-edit-move{display:flex; gap:6px; flex-wrap:wrap;}
+.btn-mini{
+  border:1px solid rgba(15,31,51,.25);
+  background:#FFFFFF;
+  color:var(--ink);
+  border-radius:6px;
+  padding:3px 9px;
+  font-size:12px;
+  font-family:var(--font-body);
+  cursor:pointer;
+  line-height:1.6;
+}
+.btn-mini:hover:not(:disabled){border-color:var(--volley-blue);}
+.btn-mini:disabled{opacity:.35; cursor:not-allowed;}
+.btn-mini.danger{color:var(--incorrect); border-color:rgba(209,73,91,.45);}
+/* 場面の見出し側(紺の背景)に置くボタンは白フチにする */
+.flow-edit-phasehead .btn-mini{
+  background:transparent;
+  color:var(--line);
+  border-color:rgba(255,255,255,.3);
+}
+.flow-edit-phasehead .btn-mini:disabled{opacity:.3;}
+.flow-edit-phasehead .btn-mini.danger{color:#F2A3AE; border-color:rgba(242,163,174,.45);}
+.flow-edit-field{display:block; margin:0 0 8px;}
+.flow-edit-field > span{
+  display:block;
+  font-size:11.5px;
+  font-weight:700;
+  margin-bottom:3px;
+  color:#4B5A6A;
+}
+.flow-edit-phase > .flow-edit-field > span{color:var(--muted);}
+.flow-edit-field input,
+.flow-edit-field textarea{
+  width:100%;
+  border:1px solid rgba(15,31,51,.25);
+  border-radius:8px;
+  padding:7px 9px;
+  font-family:var(--font-body);
+  font-size:13px;
+  line-height:1.7;
+  color:var(--ink);
+  background:#FFFFFF;
+  resize:vertical;
+}
+.flow-edit-field input:focus,
+.flow-edit-field textarea:focus{outline:2px solid var(--volley-blue); outline-offset:1px;}
+.btn-small{padding:8px 14px; font-size:13px;}
+
 /* ---------- Footer ---------- */
 .app-footer{
   max-width:760px;
