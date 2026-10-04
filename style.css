@@ -767,6 +767,110 @@ button:focus-visible{
 
 .result-actions{display:flex; gap:10px; flex-wrap:wrap;}
 
+/* ---------- 試合の流れ(MODE 07) ---------- */
+/* 筆記試験では分数・回数がそのまま問われるので、数値(.flow-key)は本文から
+   切り離して黄色のバッジで出す。画面の先頭にはその数値だけを集めた早見表を
+   置き、本文を読まなくても数字の確認だけはできるようにしてある。 */
+.flow-numbers{
+  list-style:none;
+  margin:16px 0 26px;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.flow-numbers li{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-size:13.5px;
+  color:var(--line);
+}
+.flow-key{
+  flex:none;
+  background:var(--volley-yellow);
+  color:var(--navy-deep);
+  border-radius:999px;
+  padding:3px 10px;
+  font-family:var(--font-mono);
+  font-size:12px;
+  font-weight:700;
+  line-height:1.5;
+  white-space:nowrap;
+}
+.flow-list{display:flex; flex-direction:column; gap:22px; margin:16px 0 26px;}
+.flow-phase-head{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:6px;
+}
+.flow-phase-num{
+  flex:none;
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  background:var(--volley-blue);
+  color:#FFFFFF;
+  font-family:var(--font-display);
+  font-size:15px;
+  font-weight:700;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.flow-phase-head h3{
+  margin:0;
+  font-family:var(--font-display);
+  font-size:18px;
+  letter-spacing:.04em;
+  color:var(--line);
+}
+.flow-phase-lead{margin:0 0 10px; font-size:13px; color:var(--muted);}
+/* 縦線で「上から下へ進む」ことを見せる。番号の丸はその線の上に乗せる。 */
+.flow-steps{
+  list-style:none;
+  margin:0;
+  padding:0 0 0 14px;
+  border-left:2px solid rgba(255,255,255,.18);
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.flow-step{
+  background:var(--card-bg);
+  color:var(--ink);
+  border-radius:10px;
+  padding:12px 14px;
+}
+.flow-step-head{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  margin-bottom:4px;
+}
+.flow-step-title{margin:0; font-weight:700; font-size:14px;}
+.flow-who{
+  margin:0 0 6px;
+  font-size:12px;
+  font-weight:700;
+  color:var(--volley-blue);
+}
+.flow-detail{margin:0; font-size:13px; line-height:1.75; color:#3B4A5A;}
+.flow-note{
+  margin:8px 0 0;
+  padding:6px 10px;
+  background:#F3E7C6;
+  border-radius:8px;
+  font-size:12.5px;
+  line-height:1.7;
+  color:#7A4B00;
+}
+@media (max-width:480px){
+  .flow-numbers li{align-items:flex-start;}
+}
+
 /* ---------- Footer ---------- */
 .app-footer{
   max-width:760px;

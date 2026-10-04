@@ -25,6 +25,7 @@
   let FOULS = null;         // fouls.json の内容(取得できない場合はnullのまま)
   let EXAM = null;          // exam.json の内容(模擬審査会。取得できない場合はnullのまま)
   let EXAM_FIGURES = null;  // exam_figures.json の figures(コート図・ローテーション図)
+  let FLOW = null;          // flow.json の内容(試合の流れ。取得できない場合はnullのまま)
 
   let state = {
     screen: "loading",
@@ -272,6 +273,21 @@
       .catch(() => {
         FOULS = null;
       });
+
+    // 試合の流れ(MODE 07)も任意機能。読み物だけの画面なので、取得に失敗しても
+    // ホーム画面でカードを無効表示にするだけにする。
+    fetch("flow.json", { cache: "no-store" })
+      .then(res => {
+        if (!res.ok) throw new Error("flow.json の取得に失敗しました");
+        return res.json();
+      })
+      .then(json => {
+        FLOW = json;
+        if (state.screen === "home") renderHome();
+      })
+      .catch(() => {
+        FLOW = null;
+      });
   }
 
   // ---------------- ホーム画面 ----------------
@@ -300,6 +316,16 @@
       ? (foulBest
           ? `自己ベスト: ${foulBest.correct} / ${foulBest.total} 問。反則の名称と説明の一覧を見てから、一問一答で覚えられます。`
           : `プレー中の反則を名称と説明でまとめた一覧(${FOULS.length}件)。一覧を見てから、そこから出題される一問一答クイズにも挑戦できます。`)
+      : "読み込み中、またはこの端末では利用できません。";
+
+    // 試合の流れは覚える数値(公式ウォームアップ6分・インターバル3分など)が
+    // 要なので、カードの説明にも数値が載っていることが分かる文言を出す。
+    const flowReady = !!(FLOW && Array.isArray(FLOW.phases) && FLOW.phases.length > 0);
+    const flowStepCount = flowReady
+      ? FLOW.phases.reduce((n, ph) => n + (ph.steps ? ph.steps.length : 0), 0)
+      : 0;
+    const flowCardBody = flowReady
+      ? `試合前の公式ウォームアップやセット間のインターバルなど、審判から見た試合1件分の進行を${FLOW.phases.length}場面・${flowStepCount}項目にまとめた読み物です。覚える分数・回数つき。`
       : "読み込み中、またはこの端末では利用できません。";
 
     const catPills = DATA.categories.map(c => {
@@ -355,6 +381,11 @@
           <h2>模擬審査会(本番形式)</h2>
           <p>${examCardBody}</p>
         </button>
+        <button class="mode-card" id="btn-flow" ${flowReady ? "" : "disabled"}>
+          <span class="num">MODE 07</span>
+          <h2>試合の流れ</h2>
+          <p>${flowCardBody}</p>
+        </button>
         <div class="mode-card" style="cursor:default;">
           <span class="num">STATUS</span>
           <h2>学習の記録</h2>
@@ -384,6 +415,9 @@
     }
     if (examReady) {
       document.getElementById("btn-exam06").addEventListener("click", renderExam);
+    }
+    if (flowReady) {
+      document.getElementById("btn-flow").addEventListener("click", renderFlow);
     }
     document.getElementById("btn-practice").addEventListener("click", () => {
       window.scrollTo({ top: document.getElementById("cat-list").offsetTop - 100, behavior: "smooth" });
@@ -1349,6 +1383,74 @@
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
     document.getElementById("btn-back-list").addEventListener("click", renderFoulList);
     document.getElementById("btn-foul-retry").addEventListener("click", startFoulQuiz);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  // ---------------- 試合の流れ(MODE 07) ----------------
+  // クイズではなく読み物の画面。筆記試験では「公式ウォームアップは何分間か」
+  // 「セット間のインターバルは何分間か」のように数値がそのまま問われるので、
+  // 各項目の数値(key)を見出しの横にバッジで出し、流し読みでも数字だけは
+  // 拾えるようにしてある。
+  function renderFlow() {
+    state.screen = "flow";
+
+    const phasesHtml = FLOW.phases.map((ph, i) => {
+      const steps = (ph.steps || []).map(st => {
+        const keyChip = st.key
+          ? `<span class="flow-key">${escapeHtml(st.key)}</span>`
+          : "";
+        const note = st.note
+          ? `<p class="flow-note">${escapeHtml(st.note)}</p>`
+          : "";
+        return `<li class="flow-step">
+          <div class="flow-step-head">
+            <p class="flow-step-title">${escapeHtml(st.title)}</p>
+            ${keyChip}
+          </div>
+          <p class="flow-who">${escapeHtml(st.who)}</p>
+          <p class="flow-detail">${escapeHtml(st.detail)}</p>
+          ${note}
+        </li>`;
+      }).join("");
+
+      return `<section class="flow-phase">
+        <div class="flow-phase-head">
+          <span class="flow-phase-num">${i + 1}</span>
+          <h3>${escapeHtml(ph.title)}</h3>
+        </div>
+        <p class="flow-phase-lead">${escapeHtml(ph.lead)}</p>
+        <ol class="flow-steps">${steps}</ol>
+      </section>`;
+    }).join("");
+
+    // 数値だけを先に一覧できる早見表。本文を読まなくても、試験前に
+    // ここだけ見直せば数字の確認ができる。
+    const numbersHtml = FLOW.phases.flatMap(ph =>
+      (ph.steps || []).filter(st => st.key).map(st =>
+        `<li><span class="flow-key">${escapeHtml(st.key)}</span>${escapeHtml(st.title)}</li>`)
+    ).join("");
+
+    APP.innerHTML = `
+      <p class="section-title">試合の流れ(${FLOW.phases.length}場面)</p>
+      <div class="notice-banner">
+        審判から見た試合1件分の進行を、<strong>担当者</strong>と<strong>覚える数値</strong>つきで時系列に並べた読み物です。
+        内容はこのアプリの出題・解説を再編集したもので、公式ウォームアップの分数のみ
+        (公財)日本バレーボール協会「2026年度版 バレーボール6人制競技規則」の条文を出典としています。
+        <strong>入場・整列・あいさつの段取りや公式ウォームアップの実際の持ち時間は大会要項で決められていることが多い</strong>ので、
+        担当する大会の要項を必ず確認してください。
+      </div>
+
+      <p class="section-title">数値・タイミングの早見表</p>
+      <ul class="flow-numbers">${numbersHtml}</ul>
+
+      <div class="flow-list">${phasesHtml}</div>
+
+      <div class="result-actions">
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
