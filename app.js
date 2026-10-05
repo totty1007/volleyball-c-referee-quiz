@@ -20,6 +20,7 @@
 
   let DATA = null;          // questions.json の内容
   let CAT_MAP = {};         // id -> name
+  let NUM_GROUP_MAP = {};   // 数値特訓の分野 id -> name(idは "n-" 始まりでCAT_MAPと衝突しない)
   let SIGNALS = null;       // signals.json の内容(取得できない場合はnullのまま)
   let SIGNAL_LEGEND = [];   // 図の読み方の凡例(signals.json の legend)
   let FOULS = null;         // fouls.json の内容(取得できない場合はnullのまま)
@@ -31,6 +32,7 @@
     screen: "loading",
     mode: null,             // 'practice' | 'exam' | 'review'
     selectedCats: new Set(),
+    selectedNumGroups: new Set(),  // 数値特訓(MODE 08)で選んでいる分野
     queue: [],
     index: 0,
     answers: [],            // {id, correct, chosenIndex}
@@ -175,6 +177,10 @@
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
   }
+  // 通常カテゴリ(court 等)と数値特訓の分野(n-court 等)のどちらの id でも名前を引く
+  function groupLabel(id) {
+    return CAT_MAP[id] || NUM_GROUP_MAP[id] || id;
+  }
   function formatTime(sec) {
     const m = Math.floor(sec / 60).toString().padStart(2, "0");
     const s = Math.floor(sec % 60).toString().padStart(2, "0");
@@ -204,6 +210,9 @@
         DATA = json;
         CAT_MAP = {};
         DATA.categories.forEach(c => (CAT_MAP[c.id] = c.name));
+        NUM_GROUP_MAP = {};
+        (DATA.numGroups || []).forEach(g => (NUM_GROUP_MAP[g.id] = g.name));
+        state.selectedNumGroups = new Set((DATA.numGroups || []).map(g => g.id));
         document.getElementById("footer-updated").textContent =
           DATA.meta && DATA.meta.lastUpdated ? DATA.meta.lastUpdated : "-";
         state.selectedCats = new Set(DATA.categories.map(c => c.id));
@@ -328,6 +337,13 @@
       ? `試合前の公式ウォームアップやセット間のインターバルなど、審判から見た試合1件分の進行を${FLOW.phases.length}場面・${flowStepCount}項目にまとめた読み物です。覚える分数・回数つき。`
       : "読み込み中、またはこの端末では利用できません。";
 
+    // 数値特訓(MODE 08)。questions.json に numGroup が付いた問題がある場合だけ使える。
+    const numTotal = DATA.questions.filter(q => q.numGroup).length;
+    const numReady = numTotal > 0 && (DATA.numGroups || []).length > 0;
+    const numCardBody = numReady
+      ? `コートの寸法・ネットの高さ・ボールの重さなど、数字が答えになる問題だけを${numTotal}問集めた特訓。分野を選んで集中的に解けます。`
+      : "数値問題のデータを読み込めませんでした。";
+
     const catPills = DATA.categories.map(c => {
       const n = DATA.questions.filter(q => q.category === c.id).length;
       const active = state.selectedCats.has(c.id);
@@ -386,6 +402,11 @@
           <h2>試合の流れ</h2>
           <p>${flowCardBody}</p>
         </button>
+        <button class="mode-card" id="btn-numbers" ${numReady ? "" : "disabled"}>
+          <span class="num">MODE 08</span>
+          <h2>数値特訓</h2>
+          <p>${numCardBody}</p>
+        </button>
         <div class="mode-card" style="cursor:default;">
           <span class="num">STATUS</span>
           <h2>学習の記録</h2>
@@ -419,6 +440,9 @@
     if (flowReady) {
       document.getElementById("btn-flow").addEventListener("click", renderFlow);
     }
+    if (numReady) {
+      document.getElementById("btn-numbers").addEventListener("click", renderNumbers);
+    }
     document.getElementById("btn-practice").addEventListener("click", () => {
       window.scrollTo({ top: document.getElementById("cat-list").offsetTop - 100, behavior: "smooth" });
     });
@@ -446,6 +470,86 @@
     const pool = DATA.questions.filter(q => state.selectedCats.has(q.category));
     if (pool.length === 0) return;
     beginQuiz("practice", shuffle(pool));
+  }
+
+  // ---------------- 数値特訓(MODE 08) ----------------
+  // 数字そのものが答えになる問題(コートの寸法・ネットの高さ・ボールの重さ・
+  // 時間や回数)だけを、questions.json の numGroup が付いた問題から集めて出す。
+  // 出題・採点・解説・苦手問題の記録は演習モードと同じ仕組みを使う。
+  function numPool() {
+    return DATA.questions.filter(q => q.numGroup && state.selectedNumGroups.has(q.numGroup));
+  }
+
+  // 数値の選択肢は昇順で書いてあるので、そのまま出すと正解が真ん中に偏り、
+  // 繰り返すうちに位置で覚えてしまう。数値特訓の出題時だけ並びを混ぜる。
+  // ○×は選択肢が固定なので混ぜない。元の問題は書き換えず、コピーを返す。
+  function withShuffledChoices(q) {
+    if (q.type === "truefalse") return q;
+    const order = shuffle(q.choices.map((_, i) => i));
+    return Object.assign({}, q, {
+      choices: order.map(i => q.choices[i]),
+      answer: order.indexOf(q.answer),
+    });
+  }
+
+  function startNumbers() {
+    const pool = numPool();
+    if (pool.length === 0) return;
+    beginQuiz("numbers", shuffle(pool).map(withShuffledChoices));
+  }
+
+  function renderNumbers() {
+    state.screen = "numbers";
+    const groups = DATA.numGroups || [];
+    const all = DATA.questions.filter(q => q.numGroup);
+
+    const pills = groups.map(g => {
+      const n = all.filter(q => q.numGroup === g.id).length;
+      const active = state.selectedNumGroups.has(g.id);
+      return `<button class="cat-pill ${active ? "active" : ""}" data-num-group="${escapeHtml(g.id)}">
+        ${escapeHtml(g.name)} <span class="count">${n}</span>
+      </button>`;
+    }).join("");
+
+    const picked = numPool().length;
+    APP.innerHTML = `
+      <p class="section-title">数値特訓</p>
+      <div class="notice-banner">
+        コートの寸法・ネットの高さ・ボールの重さ・時間や回数など、<strong>数字そのものが答えになる問題だけ</strong>を
+        ${all.length}問集めた特訓です。筆記試験では数値がそのまま問われるので、選択肢の並びは毎回混ぜて、
+        位置ではなく数字で覚えられるようにしてあります。数値は<strong>一般6人制の標準ルール</strong>が基準で、
+        小学生の試合(付録2)や市民ルールとは異なります。大会・地域で異なる場合がある問題には
+        <strong>⚠</strong> が付きます。間違えた問題は「苦手問題の復習」にも自動で入ります。
+      </div>
+
+      <p class="section-title">出題する分野</p>
+      <div class="cat-list" id="num-group-list">${pills}</div>
+      <div class="start-actions">
+        <button class="btn btn-primary" id="btn-start-numbers" ${picked === 0 ? "disabled" : ""}>選んだ分野で始める(${picked}問)</button>
+        <button class="btn btn-ghost" id="btn-num-all">全選択</button>
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+
+    document.getElementById("btn-start-numbers").addEventListener("click", startNumbers);
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    document.getElementById("btn-num-all").addEventListener("click", () => {
+      state.selectedNumGroups = new Set(groups.map(g => g.id));
+      renderNumbers();
+    });
+    document.querySelectorAll("[data-num-group]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.numGroup;
+        if (state.selectedNumGroups.has(id)) {
+          // 全部外すと出題できなくなるので、最後の1つは外せないようにする
+          if (state.selectedNumGroups.size > 1) state.selectedNumGroups.delete(id);
+        } else {
+          state.selectedNumGroups.add(id);
+        }
+        renderNumbers();
+      });
+    });
+    window.scrollTo({ top: 0, behavior: "auto" });
   }
 
   function startExam() {
@@ -502,7 +606,7 @@
     const total = state.queue.length;
     const pct = Math.round((state.index / total) * 100);
 
-    const modeLabel = { practice: "演習モード", exam: "模擬試験", review: "苦手問題の復習" }[state.mode];
+    const modeLabel = { practice: "演習モード", exam: "模擬試験", review: "苦手問題の復習", numbers: "数値特訓" }[state.mode];
 
     const timerHtml = state.mode === "exam"
       ? `<span class="timer" id="exam-timer">${formatTime(state.remainingSec)}</span>`
@@ -527,7 +631,7 @@
         ${timerHtml}
       </div>
       <div class="q-card">
-        <span class="q-cat-tag">${escapeHtml(CAT_MAP[q.category] || "その他")}</span>
+        <span class="q-cat-tag">${escapeHtml(state.mode === "numbers" && q.numGroup ? groupLabel(q.numGroup) : (CAT_MAP[q.category] || "その他"))}</span>
         ${verifyBadge}
         <p class="q-text">${escapeHtml(q.question)}</p>
         <div class="choices" id="choices">${choicesHtml}</div>
@@ -550,6 +654,11 @@
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
+  // 結果画面の「カテゴリ別」に使う集計キー。数値特訓では分野(n-…)で集計する。
+  function answerGroup(q) {
+    return state.mode === "numbers" && q.numGroup ? q.numGroup : q.category;
+  }
+
   function onChoose(chosenIndex) {
     const q = state.queue[state.index];
     const correct = chosenIndex === q.answer;
@@ -569,7 +678,7 @@
 
     document.getElementById("btn-next").classList.remove("hidden");
     document.getElementById("btn-next").onclick = () => {
-      state.answers.push({ id: q.id, category: q.category, correct, chosenIndex });
+      state.answers.push({ id: q.id, category: answerGroup(q), correct, chosenIndex });
       recordAnswer(q, correct);
       updateHeaderStat();
       if (state.index + 1 < state.queue.length) {
@@ -590,7 +699,7 @@
     const answeredIds = new Set(state.answers.map(a => a.id));
     state.queue.forEach(q => {
       if (!answeredIds.has(q.id)) {
-        state.answers.push({ id: q.id, category: q.category, correct: false, chosenIndex: -1, unanswered: true });
+        state.answers.push({ id: q.id, category: answerGroup(q), correct: false, chosenIndex: -1, unanswered: true });
         recordAnswer(q, false);
       }
     });
@@ -612,7 +721,7 @@
       const s = byCat[catId];
       const p = Math.round((s.c / s.t) * 100);
       return `<div class="stat-bar-row">
-        <span class="cat-name">${escapeHtml(CAT_MAP[catId] || catId)}</span>
+        <span class="cat-name">${escapeHtml(groupLabel(catId))}</span>
         <span class="stat-bar-track"><span class="stat-bar-fill" style="width:${p}%"></span></span>
         <span class="stat-bar-pct">${s.c}/${s.t}</span>
       </div>`;
@@ -622,7 +731,9 @@
     const mistakeHtml = mistakes.length === 0
       ? `<p style="color:var(--muted)">間違えた問題はありませんでした。お見事です。</p>`
       : mistakes.map(a => {
-          const q = DATA.questions.find(x => x.id === a.id);
+          // 選択肢を混ぜた出題(数値特訓)では chosenIndex は混ぜたあとの並びを指すので、
+          // 出題に使った問題(state.queue)から引く。
+          const q = state.queue.find(x => x.id === a.id) || DATA.questions.find(x => x.id === a.id);
           const yourAns = a.unanswered || a.chosenIndex < 0 ? "(未回答)" : q.choices[a.chosenIndex];
           const badge = q.verifyNote ? `<span class="verify-tag" style="margin:0 0 6px;">⚠ 地域・年度で異なる場合あり</span>` : "";
           return `<div class="mistake-item">
@@ -641,7 +752,7 @@
         <p class="result-sub">正答率 ${pct}%${isExam ? `（合格ラインの目安: ${passLine}%）` : ""}</p>
       </div>
 
-      <p class="section-title">カテゴリ別の結果</p>
+      <p class="section-title">${state.mode === "numbers" ? "分野別の結果" : "カテゴリ別の結果"}</p>
       <div class="breakdown">${breakdownHtml}</div>
 
       <p class="section-title">間違えた問題（${mistakes.length}問）</p>
@@ -649,11 +760,14 @@
 
       <div class="result-actions">
         <button class="btn btn-primary" id="btn-retry-mistakes" ${mistakes.length === 0 ? "disabled" : ""}>間違えた問題だけ復習する</button>
+        ${state.mode === "numbers" ? `<button class="btn btn-ghost" id="btn-back-numbers">分野を選び直す</button>` : ""}
         <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
       </div>
     `;
 
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    const backNumbers = document.getElementById("btn-back-numbers");
+    if (backNumbers) backNumbers.addEventListener("click", renderNumbers);
     document.getElementById("btn-retry-mistakes").addEventListener("click", () => {
       const ids = new Set(mistakes.map(m => m.id));
       const pool = DATA.questions.filter(q => ids.has(q.id));
