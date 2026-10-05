@@ -141,6 +141,8 @@ a{color:var(--volley-yellow);}
   margin-bottom:22px;
 }
 .notice-banner strong{color:var(--volley-yellow);}
+details.notice-banner summary{cursor:pointer;font-weight:700;color:var(--volley-yellow);}
+details.notice-banner[open] summary{margin-bottom:8px;}
 
 /* ---------- Verify / caution tag ---------- */
 .verify-tag{

@@ -347,9 +347,10 @@
     }).join("");
 
     APP.innerHTML = `
-      <div class="notice-banner">
+      <details class="notice-banner">
+        <summary>ご利用上の注意(タップで開く)</summary>
         本アプリは個人が作成した<strong>非公式の学習教材</strong>です。(公財)日本バレーボール協会・神奈川県バレーボール協会・相模原バレーボール協会とは無関係です。<strong>C級審判員資格(6人制競技規則・一般共通)の筆記試験対策</strong>を目的としており、コート・ネット高さ・ボール・得点・リベロ制度などは<strong>一般6人制の標準ルールを基準</strong>にしています(実際のC級筆記試験が一般6人制ルールで出題されることは、相模原バレーボール協会提供の実物練習問題で確認済みです)。小学生の試合を実際に運営する際に適用される付録2の特別ルール(コート16m×8m等)とは数値が異なりますのでご注意ください。掲載内容は参考情報であり、正誤の最終確認は必ず最新の公式ルールブック・受験要項で行ってください。「シグナル一覧」の図は、規則書の動作説明文をもとに独自に描き起こしたオリジナルの簡易図であり、公式のイラストそのものではありません。図中の<strong>青い数字バッジ(指の本数)や青い動きの矢印</strong>は覚えやすさのために独自に足したもので、実際のハンドシグナルには含まれません。実際の細かい所作は必ず公式の審判実技マニュアルの図で確認してください。
-      </div>
+      </details>
       <div class="mode-grid">
         <button class="mode-card primary" id="btn-exam">
           <span class="num">MODE 01</span>
@@ -425,7 +426,7 @@
     document.getElementById("btn-start-practice").addEventListener("click", () => startPractice());
     document.getElementById("btn-select-all").addEventListener("click", () => {
       state.selectedCats = new Set(DATA.categories.map(c => c.id));
-      renderHome();
+      document.querySelectorAll(".cat-pill").forEach(p => p.classList.add("active"));
     });
     document.querySelectorAll(".cat-pill").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -435,7 +436,10 @@
         } else {
           state.selectedCats.add(cat);
         }
-        renderHome();
+        // 再描画するとページ最上部へ戻ってしまうため、見た目だけ更新する
+        document.querySelectorAll(".cat-pill").forEach(p => {
+          p.classList.toggle("active", state.selectedCats.has(p.dataset.cat));
+        });
       });
     });
     window.scrollTo({ top: 0, behavior: "auto" });
