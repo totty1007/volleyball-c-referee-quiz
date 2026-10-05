@@ -468,10 +468,18 @@
     beginQuiz("review", shuffle(pool));
   }
 
+  // 正解がデータ上Aに偏っているため、出題のたびに4択の並びを入れ替える(○×は固定)。
+  // answer も並び替え後の位置に付け替えた「複製」を返す(DATA本体は変えない)。
+  function shuffleChoices(q) {
+    if (q.type !== "single" || q.choices.length < 3) return q;
+    const order = shuffle(q.choices.map((_, i) => i));
+    return { ...q, choices: order.map(i => q.choices[i]), answer: order.indexOf(q.answer) };
+  }
+
   function beginQuiz(mode, queue) {
     stopTimer();
     state.mode = mode;
-    state.queue = queue;
+    state.queue = queue.map(shuffleChoices);
     state.index = 0;
     state.answers = [];
     state.screen = "quiz";
@@ -626,7 +634,7 @@
     const mistakeHtml = mistakes.length === 0
       ? `<p style="color:var(--muted)">間違えた問題はありませんでした。お見事です。</p>`
       : mistakes.map(a => {
-          const q = DATA.questions.find(x => x.id === a.id);
+          const q = state.queue.find(x => x.id === a.id) || DATA.questions.find(x => x.id === a.id);
           const yourAns = a.unanswered || a.chosenIndex < 0 ? "(未回答)" : q.choices[a.chosenIndex];
           const badge = q.verifyNote ? `<span class="verify-tag" style="margin:0 0 6px;">⚠ 地域・年度で異なる場合あり</span>` : "";
           return `<div class="mistake-item">
