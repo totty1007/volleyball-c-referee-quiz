@@ -26,6 +26,8 @@
   let EXAM = null;          // exam.json の内容(模擬審査会。取得できない場合はnullのまま)
   let EXAM_FIGURES = null;  // exam_figures.json の figures(コート図・ローテーション図)
   let FLOW = null;          // flow.json の内容(試合の流れ。取得できない場合はnullのまま)
+  let FACILITY = null;      // facility.json の内容(施設・用具の解説。取得できない場合はnullのまま)
+  const STORAGE_FLOW_SETTINGS = "vcRef_flow_settings_v1"; // 試合の流れの大会設定(現在値+保存した大会)
 
   let state = {
     screen: "loading",
@@ -288,6 +290,20 @@
       .catch(() => {
         FLOW = null;
       });
+
+    // 施設・用具の解説(MODE 08)も読み物の任意機能。
+    fetch("facility.json", { cache: "no-store" })
+      .then(res => {
+        if (!res.ok) throw new Error("facility.json の取得に失敗しました");
+        return res.json();
+      })
+      .then(json => {
+        FACILITY = json;
+        if (state.screen === "home") renderHome();
+      })
+      .catch(() => {
+        FACILITY = null;
+      });
   }
 
   // ---------------- ホーム画面 ----------------
@@ -325,7 +341,11 @@
       ? FLOW.phases.reduce((n, ph) => n + (ph.steps ? ph.steps.length : 0), 0)
       : 0;
     const flowCardBody = flowReady
-      ? `試合前の公式ウォームアップやセット間のインターバルなど、審判から見た試合1件分の進行を${FLOW.phases.length}場面・${flowStepCount}項目にまとめた読み物です。覚える分数・回数つき。`
+      ? `小学生の試合に合わせた、審判から見た試合1件分の進行(${FLOW.phases.length}場面・${flowStepCount}項目)。ウォームアップやインターバルなど大会ごとに違う時間は、自分で書き換えて保存できます。`
+      : "読み込み中、またはこの端末では利用できません。";
+    const facilityReady = !!(FACILITY && Array.isArray(FACILITY.items) && FACILITY.items.length > 0);
+    const facilityCardBody = facilityReady
+      ? `コート・ネット・ボール・ユニフォームなど${FACILITY.items.length}項目の解説。検索窓で調べられます(一般6人制・筆記試験の値)。`
       : "読み込み中、またはこの端末では利用できません。";
 
     const catPills = DATA.categories.map(c => {
@@ -387,6 +407,11 @@
           <h2>試合の流れ</h2>
           <p>${flowCardBody}</p>
         </button>
+        <button class="mode-card" id="btn-facility" ${facilityReady ? "" : "disabled"}>
+          <span class="num">MODE 08</span>
+          <h2>施設・用具の解説(検索)</h2>
+          <p>${facilityCardBody}</p>
+        </button>
         <div class="mode-card" style="cursor:default;">
           <span class="num">STATUS</span>
           <h2>学習の記録</h2>
@@ -419,6 +444,9 @@
     }
     if (flowReady) {
       document.getElementById("btn-flow").addEventListener("click", renderFlow);
+    }
+    if (facilityReady) {
+      document.getElementById("btn-facility").addEventListener("click", renderFacility);
     }
     document.getElementById("btn-practice").addEventListener("click", () => {
       window.scrollTo({ top: document.getElementById("cat-list").offsetTop - 100, behavior: "smooth" });
@@ -1391,28 +1419,61 @@
   }
 
   // ---------------- 試合の流れ(MODE 07) ----------------
-  // クイズではなく読み物の画面。筆記試験では「公式ウォームアップは何分間か」
-  // 「セット間のインターバルは何分間か」のように数値がそのまま問われるので、
-  // 各項目の数値(key)を見出しの横にバッジで出し、流し読みでも数字だけは
-  // 拾えるようにしてある。
-  function renderFlow() {
-    state.screen = "flow";
+  // 小学生の試合に合わせた読み物。ウォームアップ・インターバルなど大会ごとに
+  // 変わる値は flow.json の settings に定義し、本文中の {id} をその値に置き換えて
+  // 表示する。値は画面上部の「この大会の設定」で書き換えられ、端末のブラウザ
+  // (localStorage)に保存される。大会名をつけて複数保存し、呼び出すこともできる。
+  function loadFlowStore() {
+    try {
+      const o = JSON.parse(localStorage.getItem(STORAGE_FLOW_SETTINGS)) || {};
+      return { current: o.current || {}, presets: o.presets || {} };
+    } catch (e) {
+      return { current: {}, presets: {} };
+    }
+  }
+  function saveFlowStore(store) {
+    try {
+      localStorage.setItem(STORAGE_FLOW_SETTINGS, JSON.stringify(store));
+    } catch (e) {
+      /* 保存できなくても画面の表示は続ける */
+    }
+  }
+  function flowValues(store) {
+    const vals = {};
+    (FLOW.settings || []).forEach(s => {
+      vals[s.id] = Object.prototype.hasOwnProperty.call(store.current, s.id)
+        ? String(store.current[s.id])
+        : (s.default || "");
+    });
+    return vals;
+  }
+  // 本文をエスケープしたうえで {id} を設定値に置き換える。未設定は【要設定】。
+  function flowFill(text, vals) {
+    return escapeHtml(text).replace(/\{(\w+)\}/g, (m, id) => {
+      if (!Object.prototype.hasOwnProperty.call(vals, id)) return m;
+      const v = vals[id].trim();
+      return v
+        ? `<span class="flow-var">${escapeHtml(v)}</span>`
+        : `<span class="flow-var unset">【要設定】</span>`;
+    });
+  }
 
+  function flowContentHtml(vals) {
     const phasesHtml = FLOW.phases.map((ph, i) => {
       const steps = (ph.steps || []).map(st => {
         const keyChip = st.key
-          ? `<span class="flow-key">${escapeHtml(st.key)}</span>`
+          ? `<span class="flow-key">${flowFill(st.key, vals)}</span>`
           : "";
         const note = st.note
-          ? `<p class="flow-note">${escapeHtml(st.note)}</p>`
+          ? `<p class="flow-note">${flowFill(st.note, vals)}</p>`
           : "";
         return `<li class="flow-step">
           <div class="flow-step-head">
-            <p class="flow-step-title">${escapeHtml(st.title)}</p>
+            <p class="flow-step-title">${flowFill(st.title, vals)}</p>
             ${keyChip}
           </div>
           <p class="flow-who">${escapeHtml(st.who)}</p>
-          <p class="flow-detail">${escapeHtml(st.detail)}</p>
+          <p class="flow-detail">${flowFill(st.detail, vals)}</p>
           ${note}
         </li>`;
       }).join("");
@@ -1427,34 +1488,213 @@
       </section>`;
     }).join("");
 
-    // 数値だけを先に一覧できる早見表。本文を読まなくても、試験前に
-    // ここだけ見直せば数字の確認ができる。
+    // 数値だけを先に一覧できる早見表。本文を読まなくても、ここだけ見れば
+    // その大会の数字を確認できる。
     const numbersHtml = FLOW.phases.flatMap(ph =>
       (ph.steps || []).filter(st => st.key).map(st =>
-        `<li><span class="flow-key">${escapeHtml(st.key)}</span>${escapeHtml(st.title)}</li>`)
+        `<li><span class="flow-key">${flowFill(st.key, vals)}</span>${flowFill(st.title, vals)}</li>`)
     ).join("");
 
-    APP.innerHTML = `
-      <p class="section-title">試合の流れ(${FLOW.phases.length}場面)</p>
-      <div class="notice-banner">
-        審判から見た試合1件分の進行を、<strong>担当者</strong>と<strong>覚える数値</strong>つきで時系列に並べた読み物です。
-        内容はこのアプリの出題・解説を再編集したもので、公式ウォームアップの分数のみ
-        (公財)日本バレーボール協会「2026年度版 バレーボール6人制競技規則」の条文を出典としています。
-        <strong>入場・整列・あいさつの段取りや公式ウォームアップの実際の持ち時間は大会要項で決められていることが多い</strong>ので、
-        担当する大会の要項を必ず確認してください。
-      </div>
-
+    return `
       <p class="section-title">数値・タイミングの早見表</p>
       <ul class="flow-numbers">${numbersHtml}</ul>
+      <div class="flow-list">${phasesHtml}</div>`;
+  }
 
-      <div class="flow-list">${phasesHtml}</div>
+  function renderFlow() {
+    state.screen = "flow";
+    const store = loadFlowStore();
+
+    const groups = [];
+    (FLOW.settings || []).forEach(s => {
+      let g = groups.find(x => x.name === s.group);
+      if (!g) { g = { name: s.group, items: [] }; groups.push(g); }
+      g.items.push(s);
+    });
+    const settingsHtml = groups.map(g => `
+      <fieldset class="flow-set-group">
+        <legend>${escapeHtml(g.name)}</legend>
+        ${g.items.map(s => `
+          <label class="flow-set-row">
+            <span class="flow-set-label">${escapeHtml(s.label)}</span>
+            <input type="text" class="flow-set-input" data-id="${escapeHtml(s.id)}"
+              value="${escapeHtml(flowValues(store)[s.id])}"
+              placeholder="${escapeHtml(s.hint || "")}">
+          </label>`).join("")}
+      </fieldset>`).join("");
+
+    const presetNames = Object.keys(store.presets);
+    const presetOptions = presetNames.length
+      ? presetNames.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("")
+      : `<option value="">(保存した大会はありません)</option>`;
+
+    APP.innerHTML = `
+      <p class="section-title">試合の流れ(小学生の試合)</p>
+      <div class="notice-banner">
+        審判から見た試合1件分の進行を、<strong>担当者</strong>と<strong>覚える数値</strong>つきで時系列に並べた読み物です。
+        <strong>小学生の試合</strong>(コート16m×8m・ネット2.00m・選手交代12回・21点制で2セット先取、リベロなし)に合わせてあります。
+        ウォームアップやインターバルなど<strong>大会ごとに違う時間は【要設定】</strong>と表示されます。
+        下の「この大会の設定」に入力すると、本文と早見表に反映されます(入力した内容はこの端末に保存されます)。
+        なお、筆記試験は一般6人制の値で出題されます(数値が違う項目には注記を付けています)。
+      </div>
+
+      <details class="flow-settings" id="flow-settings" open>
+        <summary>この大会の設定(タップで開閉)</summary>
+        <div class="flow-settings-body">
+          ${settingsHtml}
+          <div class="flow-preset-bar">
+            <button type="button" class="btn btn-primary" id="btn-flow-save">この設定を大会名で保存</button>
+            <select id="flow-preset-select" aria-label="保存した大会">${presetOptions}</select>
+            <button type="button" class="btn btn-ghost" id="btn-flow-load">呼び出す</button>
+            <button type="button" class="btn btn-ghost" id="btn-flow-del">削除</button>
+            <button type="button" class="btn btn-ghost" id="btn-flow-reset">初期値に戻す</button>
+          </div>
+          <p class="flow-set-msg" id="flow-set-msg" aria-live="polite"></p>
+        </div>
+      </details>
+
+      <div id="flow-content"></div>
 
       <div class="result-actions">
         <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
       </div>
     `;
 
+    const refresh = () => {
+      document.getElementById("flow-content").innerHTML = flowContentHtml(flowValues(store));
+    };
+    const say = msg => { document.getElementById("flow-set-msg").textContent = msg; };
+    refresh();
+
+    document.querySelectorAll(".flow-set-input").forEach(inp => {
+      inp.addEventListener("input", () => {
+        store.current[inp.dataset.id] = inp.value;
+        saveFlowStore(store);
+        refresh();
+      });
+    });
+
+    document.getElementById("btn-flow-save").addEventListener("click", () => {
+      const name = (store.current.tournament || "").trim();
+      if (!name) { say("先に「大会名・メモ」を入力してください(保存名に使います)。"); return; }
+      store.presets[name] = Object.assign({}, flowValues(store));
+      saveFlowStore(store);
+      renderFlow();
+      document.getElementById("flow-set-msg").textContent = `「${name}」として保存しました。`;
+    });
+    document.getElementById("btn-flow-load").addEventListener("click", () => {
+      const name = document.getElementById("flow-preset-select").value;
+      if (!name || !store.presets[name]) { say("呼び出す大会を選んでください。"); return; }
+      store.current = Object.assign({}, store.presets[name]);
+      saveFlowStore(store);
+      renderFlow();
+      document.getElementById("flow-set-msg").textContent = `「${name}」の設定を呼び出しました。`;
+    });
+    document.getElementById("btn-flow-del").addEventListener("click", () => {
+      const name = document.getElementById("flow-preset-select").value;
+      if (!name || !store.presets[name]) { say("削除する大会を選んでください。"); return; }
+      if (!window.confirm(`保存した「${name}」を削除しますか?`)) return;
+      delete store.presets[name];
+      saveFlowStore(store);
+      renderFlow();
+    });
+    document.getElementById("btn-flow-reset").addEventListener("click", () => {
+      if (!window.confirm("入力した設定をすべて初期値に戻しますか?(保存した大会は消えません)")) return;
+      store.current = {};
+      saveFlowStore(store);
+      renderFlow();
+    });
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  // ---------------- 施設・用具の解説(MODE 08) ----------------
+  // 検索窓で項目を絞り込む読み物。検索はひらがな/カタカナ・全角/半角・大文字小文字を
+  // 区別せず、スペースで区切った語はすべてを含む項目だけを残す(AND検索)。
+  // 項目ごとに一般6人制(筆記試験)と小学生の値を並べて見せる。
+  function normalizeForSearch(text) {
+    return String(text || "")
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+  }
+
+  function renderFacility() {
+    state.screen = "facility";
+    const cats = FACILITY.categories || [];
+    const catName = id => (cats.find(c => c.id === id) || {}).name || "";
+    const items = FACILITY.items.map(it => ({
+      it,
+      hay: normalizeForSearch([it.name, catName(it.cat), (it.keywords || []).join(" "),
+        it.general, it.body].join(" ")),
+    }));
+    let activeCat = "";
+
+    APP.innerHTML = `
+      <p class="section-title">施設・用具の解説(${FACILITY.items.length}項目)</p>
+      <div class="notice-banner">
+        コート・ネット・ボール・ユニフォームなどの規格と注意点をまとめた解説です。
+        値は<strong>一般6人制(筆記試験)</strong>のものです。
+        <strong>「要確認」</strong>の項目は一般的な規格として載せたもので、規則書の規格図・大会要項で必ず確認してください。
+      </div>
+      <div class="fac-search">
+        <input type="search" id="fac-q" class="fac-q" placeholder="調べたい言葉を入力(例: ネット 高さ / ボール / アンテナ)" autocomplete="off" aria-label="施設・用具を検索">
+        <button type="button" class="btn btn-ghost" id="fac-clear">クリア</button>
+      </div>
+      <div class="cat-list fac-cats" id="fac-cats">
+        <button type="button" class="cat-pill active" data-cat="">すべて</button>
+        ${cats.map(c => `<button type="button" class="cat-pill" data-cat="${escapeHtml(c.id)}">${escapeHtml(c.name)}</button>`).join("")}
+      </div>
+      <p class="fac-count" id="fac-count" aria-live="polite"></p>
+      <div class="mistake-list" id="fac-list"></div>
+      <div class="result-actions">
+        <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
+      </div>
+    `;
+
+    const listEl = document.getElementById("fac-list");
+    const countEl = document.getElementById("fac-count");
+    const qEl = document.getElementById("fac-q");
+
+    function cardHtml(it) {
+      const warn = it.verified === "checked" ? "" : `<span class="fac-warn">要確認</span>`;
+      return `<div class="mistake-item fac-card">
+        <p class="mi-q">${escapeHtml(it.name)} <span class="fac-cat">${escapeHtml(catName(it.cat))}</span>${warn}</p>
+        <div class="fac-vals">
+          <div class="fac-val"><p>${escapeHtml(it.general)}</p></div>
+        </div>
+        <p class="fac-body">${escapeHtml(it.body)}</p>
+      </div>`;
+    }
+
+    function apply() {
+      const terms = normalizeForSearch(qEl.value).split(/\s+/).filter(Boolean);
+      const hits = items.filter(x =>
+        (!activeCat || x.it.cat === activeCat) && terms.every(t => x.hay.indexOf(t) >= 0));
+      countEl.textContent = hits.length === items.length
+        ? `全${items.length}項目`
+        : `${hits.length}件ヒット(全${items.length}項目中)`;
+      listEl.innerHTML = hits.length
+        ? hits.map(x => cardHtml(x.it)).join("")
+        : `<p class="fac-empty">該当する項目がありません。別の言葉(例:「ネット」「ボール」「番号」)で試してください。</p>`;
+    }
+
+    qEl.addEventListener("input", apply);
+    document.getElementById("fac-clear").addEventListener("click", () => {
+      qEl.value = "";
+      apply();
+      qEl.focus();
+    });
+    document.querySelectorAll("#fac-cats .cat-pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        activeCat = btn.dataset.cat;
+        document.querySelectorAll("#fac-cats .cat-pill").forEach(p =>
+          p.classList.toggle("active", p === btn));
+        apply();
+      });
+    });
+    document.getElementById("btn-back-home").addEventListener("click", renderHome);
+    apply();
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
@@ -1490,6 +1730,7 @@
         "exam.json",
         "exam_figures.json",
         "flow.json",
+        "facility.json",
       ];
       document.querySelectorAll("script[src], link[rel=stylesheet]").forEach(el => {
         const url = el.src || el.href;

@@ -948,3 +948,43 @@ button:focus-visible{
   .timer{order:2; margin-left:auto;}
   .header-inner{flex-wrap:wrap; row-gap:10px;}
 }
+
+/* ---------- 試合の流れ: 大会設定 / 施設・用具の解説(MODE 08) ---------- */
+.flow-var{
+  background:#FFF1B8; color:var(--navy-deep); border-radius:4px; padding:0 4px; font-weight:700;
+}
+.flow-var.unset{background:#F6C9CF; color:#8A1F2F;}
+.flow-key .flow-var, .flow-key .flow-var.unset{background:none; color:inherit; padding:0;}
+.flow-settings{
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--radius); padding:10px 14px; margin:16px 0 22px;
+}
+.flow-settings summary{cursor:pointer; font-weight:700; color:var(--volley-yellow);}
+.flow-settings-body{margin-top:12px;}
+.flow-set-group{border:1px solid rgba(255,255,255,.16); border-radius:10px; margin:0 0 12px; padding:8px 12px 10px;}
+.flow-set-group legend{padding:0 6px; font-size:12.5px; font-weight:700; color:var(--muted);}
+.flow-set-row{display:flex; flex-direction:column; gap:3px; margin:8px 0; font-size:13px;}
+.flow-set-label{color:var(--line); font-weight:700;}
+.flow-set-input, .fac-q, #flow-preset-select{
+  width:100%; box-sizing:border-box; padding:9px 11px; font:inherit; font-size:14px;
+  border-radius:8px; border:1px solid rgba(255,255,255,.3); background:#FFFFFF; color:var(--ink);
+}
+.flow-preset-bar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:6px;}
+.flow-preset-bar #flow-preset-select{width:auto; flex:1 1 160px;}
+.flow-set-msg{margin:8px 0 0; min-height:1.2em; font-size:12.5px; color:var(--volley-yellow);}
+
+.fac-search{display:flex; gap:8px; align-items:center; margin:14px 0 10px;}
+.fac-q{flex:1; font-size:16px;}
+.fac-cats{margin-bottom:8px;}
+.fac-count{margin:6px 0 0; font-size:12.5px; color:var(--muted);}
+.fac-empty{color:var(--line); padding:16px 4px;}
+.fac-cat{display:inline-block; margin-left:6px; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700; background:#DCE6F0; color:var(--navy-mid);}
+.fac-warn{display:inline-block; margin-left:6px; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700; background:#F6C9CF; color:#8A1F2F;}
+.fac-vals{display:grid; grid-template-columns:1fr; gap:8px; margin:8px 0;}
+.fac-val{background:#FFFFFF; border-radius:8px; padding:8px 10px;}
+.fac-val p{margin:4px 0 0; font-size:13px; line-height:1.65; font-weight:500;}
+.fac-tag{display:inline-block; font-size:11px; font-weight:700; border-radius:4px; padding:1px 7px; color:#FFFFFF;}
+.fac-tag.gen{background:var(--volley-blue);}
+.fac-tag.ele{background:var(--correct);}
+.fac-body{font-size:13px; line-height:1.7; color:#3B4A5A; font-weight:500;}
+@media (max-width:560px){ .fac-vals{grid-template-columns:1fr;} }
