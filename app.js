@@ -1771,8 +1771,37 @@
     });
   }
 
+  // ---------------- ホームへ戻るボタン(常時表示) ----------------
+  // 各画面の「ホームへ戻る」は画面の一番下にしかなく、長い画面(試合の流れ・
+  // 施設・用具など)では戻るのが大変なので、ホーム以外の画面では画面の端に
+  // 固定のボタンを出す。表示の切り替えは state.screen の変更に連動させ、
+  // 各画面の描画コードを触らずに済ませている。
+  function setupFloatingHome() {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "btn-float-home";
+    btn.className = "float-home hidden";
+    btn.textContent = "ホームへ戻る";
+    btn.addEventListener("click", () => {
+      stopTimer();
+      renderHome();
+    });
+    document.body.appendChild(btn);
+
+    let screen = state.screen;
+    Object.defineProperty(state, "screen", {
+      enumerable: true,
+      get() { return screen; },
+      set(v) {
+        screen = v;
+        btn.classList.toggle("hidden", v === "home" || v === "loading");
+      },
+    });
+  }
+
   // ---------------- 起動 ----------------
   document.addEventListener("DOMContentLoaded", () => {
+    setupFloatingHome();
     setupRefreshButton();
     init();
   });

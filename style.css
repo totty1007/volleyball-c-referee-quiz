@@ -1001,3 +1001,13 @@ button:focus-visible{
 .flow-wh-item{background:var(--card-bg); color:var(--ink); border-radius:10px; padding:10px 14px;}
 .flow-wh-moment{margin:0 0 2px; font-weight:700; font-size:14px;}
 .flow-wh-note{margin:0 0 22px; font-size:12.5px; color:var(--muted); line-height:1.7;}
+
+/* ---------- ホームへ戻る(常時表示) ---------- */
+.float-home{
+  position:fixed; right:14px; bottom:14px; z-index:50;
+  padding:10px 16px; border:none; border-radius:999px; cursor:pointer;
+  background:var(--volley-yellow); color:var(--navy-deep);
+  font:700 14px var(--font-body); box-shadow:0 3px 10px rgba(0,0,0,.35);
+}
+.float-home:hover{filter:brightness(1.05);}
+.float-home.hidden{display:none;}
