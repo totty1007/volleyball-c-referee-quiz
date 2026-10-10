@@ -1467,13 +1467,24 @@
         const note = st.note
           ? `<p class="flow-note">${flowFill(st.note, vals)}</p>`
           : "";
+        const whistle = st.whistle
+          ? `<p class="flow-whistle"><span class="flow-whistle-tag">笛</span>${flowFill(st.whistle, vals)}</p>`
+          : "";
+        const proc = (st.procedure && st.procedure.length)
+          ? `<ol class="flow-proc">${st.procedure.map(t => `<li>${flowFill(t, vals)}</li>`).join("")}</ol>`
+          : "";
+        const detail = st.detail
+          ? `<p class="flow-detail">${flowFill(st.detail, vals)}</p>`
+          : "";
         return `<li class="flow-step">
           <div class="flow-step-head">
             <p class="flow-step-title">${flowFill(st.title, vals)}</p>
             ${keyChip}
           </div>
           <p class="flow-who">${escapeHtml(st.who)}</p>
-          <p class="flow-detail">${flowFill(st.detail, vals)}</p>
+          ${whistle}
+          ${detail}
+          ${proc}
           ${note}
         </li>`;
       }).join("");
@@ -1495,7 +1506,21 @@
         `<li><span class="flow-key">${flowFill(st.key, vals)}</span>${flowFill(st.title, vals)}</li>`)
     ).join("");
 
+    // 笛を吹くタイミングの早見表(いつ・だれが・どう吹くか)
+    const whistlesHtml = (FLOW.whistles || []).map(w => `
+      <li class="flow-wh-item">
+        <p class="flow-wh-moment"><span class="flow-whistle-tag">笛</span>${flowFill(w.moment, vals)}</p>
+        <p class="flow-who">${flowFill(w.who, vals)}</p>
+        <p class="flow-detail">${flowFill(w.how, vals)}</p>
+      </li>`).join("");
+    const whistlesBlock = whistlesHtml
+      ? `<p class="section-title">笛を吹くタイミングの早見表</p>
+         <ul class="flow-wh-list">${whistlesHtml}</ul>
+         ${FLOW.whistlesNote ? `<p class="flow-wh-note">${flowFill(FLOW.whistlesNote, vals)}</p>` : ""}`
+      : "";
+
     return `
+      ${whistlesBlock}
       <p class="section-title">数値・タイミングの早見表</p>
       <ul class="flow-numbers">${numbersHtml}</ul>
       <div class="flow-list">${phasesHtml}</div>`;
