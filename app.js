@@ -27,6 +27,7 @@
   let EXAM_FIGURES = null;  // exam_figures.json の figures(コート図・ローテーション図)
   let FLOW = null;          // flow.json の内容(試合の流れ。取得できない場合はnullのまま)
   let FACILITY = null;      // facility.json の内容(施設・用具の解説。取得できない場合はnullのまま)
+  const STORAGE_HOME_TAB = "vcRef_home_tab_v1"; // ホームのタブ(実践/試験)の最後の選択
   const STORAGE_FLOW_SETTINGS = "vcRef_flow_settings_v1"; // 試合の流れの大会設定(現在値+保存した大会)
 
   let state = {
@@ -314,9 +315,7 @@
     const signalBest = loadSignalBest();
     const signalReady = Array.isArray(SIGNALS) && SIGNALS.length > 0;
     const signalCardBody = signalReady
-      ? (signalBest
-          ? `自己ベスト: ${signalBest.correct} / ${signalBest.total} 問。${SIGNALS.length}件の図を一覧で覚えてから、図と名称を当てるクイズに挑戦できます。`
-          : `ハンドシグナル${SIGNALS.length}件の図と動作説明の一覧。覚えてから、図を見て名称を当てるクイズに挑戦できます。`)
+      ? `ハンドシグナル${SIGNALS.length}件の図・名称・動作説明の一覧。`
       : "読み込み中、またはこの端末では利用できません。";
 
     const foulReady = Array.isArray(FOULS) && FOULS.length >= FOUL_CHOICE_COUNT;
@@ -329,9 +328,7 @@
           : `実物のC級審査会筆記試験と同じ構成(問1〜問7)・同じ出題数(${EXAM.meta.totalItems}項目)・同じ配点(${EXAM.meta.totalPoints}点満点)で、1枚の答案を通して解きます。問題文は自作です。`)
       : "模擬審査会のデータ(exam.json / exam_figures.json / signals.json)を読み込めませんでした。";
     const foulCardBody = foulReady
-      ? (foulBest
-          ? `自己ベスト: ${foulBest.correct} / ${foulBest.total} 問。反則の名称と説明の一覧を見てから、一問一答で覚えられます。`
-          : `プレー中の反則を名称と説明でまとめた一覧(${FOULS.length}件)。一覧を見てから、そこから出題される一問一答クイズにも挑戦できます。`)
+      ? `プレー中の反則を名称と説明でまとめた一覧(${FOULS.length}件・あいうえお順)。`
       : "読み込み中、またはこの端末では利用できません。";
 
     // 試合の流れは覚える数値(公式ウォームアップ6分・インターバル3分など)が
@@ -371,7 +368,38 @@
         <summary>ご利用上の注意(タップで開く)</summary>
         本アプリは個人が作成した<strong>非公式の学習教材</strong>です。(公財)日本バレーボール協会・神奈川県バレーボール協会・相模原バレーボール協会とは無関係です。<strong>C級審判員資格(6人制競技規則・一般共通)の筆記試験対策</strong>を目的としており、コート・ネット高さ・ボール・得点・リベロ制度などは<strong>一般6人制の標準ルールを基準</strong>にしています(実際のC級筆記試験が一般6人制ルールで出題されることは、相模原バレーボール協会提供の実物練習問題で確認済みです)。小学生の試合を実際に運営する際に適用される付録2の特別ルール(コート16m×8m等)とは数値が異なりますのでご注意ください。掲載内容は参考情報であり、正誤の最終確認は必ず最新の公式ルールブック・受験要項で行ってください。「シグナル一覧」の図は、規則書の動作説明文をもとに独自に描き起こしたオリジナルの簡易図であり、公式のイラストそのものではありません。図中の<strong>青い数字バッジ(指の本数)や青い動きの矢印</strong>は覚えやすさのために独自に足したもので、実際のハンドシグナルには含まれません。実際の細かい所作は必ず公式の審判実技マニュアルの図で確認してください。
       </details>
-      <div class="mode-grid">
+      <div class="home-tabs" role="tablist">
+        <button type="button" class="home-tab" role="tab" data-tab="practice">実践モード<small>試合中のルール確認</small></button>
+        <button type="button" class="home-tab" role="tab" data-tab="exam">試験モード<small>問題演習・模擬試験</small></button>
+      </div>
+
+      <div class="home-pane" data-pane="practice">
+        <div class="mode-grid">
+        <button class="mode-card" id="btn-flow" ${flowReady ? "" : "disabled"}>
+          <span class="num">MODE 07</span>
+          <h2>試合の流れ</h2>
+          <p>${flowCardBody}</p>
+        </button>
+        <button class="mode-card" id="btn-facility" ${facilityReady ? "" : "disabled"}>
+          <span class="num">MODE 08</span>
+          <h2>施設・用具の解説(検索)</h2>
+          <p>${facilityCardBody}</p>
+        </button>
+        <button class="mode-card" id="btn-signal" ${signalReady ? "" : "disabled"}>
+          <span class="num">MODE 04</span>
+          <h2>ハンドシグナル一覧</h2>
+          <p>${signalCardBody}</p>
+        </button>
+        <button class="mode-card" id="btn-fouls" ${foulReady ? "" : "disabled"}>
+          <span class="num">MODE 05</span>
+          <h2>反則一覧</h2>
+          <p>${foulCardBody}</p>
+        </button>
+        </div>
+      </div>
+
+      <div class="home-pane" data-pane="exam">
+        <div class="mode-grid">
         <button class="mode-card primary" id="btn-exam">
           <span class="num">MODE 01</span>
           <h2>模擬試験</h2>
@@ -387,37 +415,27 @@
           <h2>苦手問題の復習</h2>
           <p>${wrongCount > 0 ? `過去に間違えた ${wrongCount} 問だけを出題します。` : "間違えた問題はまだありません。"}</p>
         </button>
-        <button class="mode-card" id="btn-signal" ${signalReady ? "" : "disabled"}>
+        <button class="mode-card" id="btn-signal-quiz" ${signalReady ? "" : "disabled"}>
           <span class="num">MODE 04</span>
-          <h2>シグナル一覧＆認識クイズ</h2>
-          <p>${signalCardBody}</p>
+          <h2>シグナル認識クイズ</h2>
+          <p>図と名称を当てるクイズ。${signalBest ? `自己ベスト: ${signalBest.correct} / ${signalBest.total} 問。` : ""}</p>
         </button>
-        <button class="mode-card" id="btn-fouls" ${foulReady ? "" : "disabled"}>
+        <button class="mode-card" id="btn-foul-quiz" ${foulReady ? "" : "disabled"}>
           <span class="num">MODE 05</span>
-          <h2>反則一覧＆反則クイズ</h2>
-          <p>${foulCardBody}</p>
+          <h2>反則クイズ</h2>
+          <p>反則の名称と説明を当てる一問一答。${foulBest ? `自己ベスト: ${foulBest.correct} / ${foulBest.total} 問。` : ""}</p>
         </button>
         <button class="mode-card" id="btn-exam06" ${examReady ? "" : "disabled"}>
           <span class="num">MODE 06</span>
           <h2>模擬審査会(本番形式)</h2>
           <p>${examCardBody}</p>
         </button>
-        <button class="mode-card" id="btn-flow" ${flowReady ? "" : "disabled"}>
-          <span class="num">MODE 07</span>
-          <h2>試合の流れ</h2>
-          <p>${flowCardBody}</p>
-        </button>
-        <button class="mode-card" id="btn-facility" ${facilityReady ? "" : "disabled"}>
-          <span class="num">MODE 08</span>
-          <h2>施設・用具の解説(検索)</h2>
-          <p>${facilityCardBody}</p>
-        </button>
         <div class="mode-card" style="cursor:default;">
           <span class="num">STATUS</span>
           <h2>学習の記録</h2>
           <p>正答率や間違えた問題数はこの端末(ブラウザ)に保存されます。</p>
         </div>
-      </div>
+        </div>
 
       <p class="section-title">演習モードの出題カテゴリ</p>
       <div class="cat-list" id="cat-list">${catPills}</div>
@@ -426,9 +444,26 @@
         <button class="btn btn-ghost" id="btn-select-all">全選択</button>
       </div>
 
-      <p class="section-title" style="margin-top:34px;">カテゴリ別 正答率</p>
-      <div class="breakdown">${statBars}</div>
+      </div>
+
+      <div class="home-pane" data-pane="exam">
+        <p class="section-title" style="margin-top:34px;">カテゴリ別 正答率</p>
+        <div class="breakdown">${statBars}</div>
+      </div>
     `;
+
+    const setHomeTab = tab => {
+      state.homeTab = tab;
+      try { localStorage.setItem(STORAGE_HOME_TAB, tab); } catch (e) { /* 保存できなくても続行 */ }
+      document.querySelectorAll(".home-tab").forEach(b =>
+        b.classList.toggle("active", b.dataset.tab === tab));
+      document.querySelectorAll(".home-pane").forEach(p => { p.hidden = p.dataset.pane !== tab; });
+    };
+    document.querySelectorAll(".home-tab").forEach(b =>
+      b.addEventListener("click", () => setHomeTab(b.dataset.tab)));
+    let initialTab = state.homeTab;
+    if (!initialTab) { try { initialTab = localStorage.getItem(STORAGE_HOME_TAB); } catch (e) { /* 無視 */ } }
+    setHomeTab(initialTab === "exam" ? "exam" : "practice");
 
     document.getElementById("btn-exam").addEventListener("click", startExam);
     document.getElementById("btn-review").addEventListener("click", startReview);
@@ -436,6 +471,8 @@
       // まず一覧(学習)を見せ、そこから出題へ進ませる(MODE 05の反則と同じ流れ)。
       document.getElementById("btn-signal").addEventListener("click", renderSignalList);
     }
+    if (signalReady) document.getElementById("btn-signal-quiz").addEventListener("click", startSignalMode);
+    if (foulReady) document.getElementById("btn-foul-quiz").addEventListener("click", startFoulQuiz);
     if (foulReady) {
       document.getElementById("btn-fouls").addEventListener("click", renderFoulList);
     }
@@ -751,13 +788,11 @@
       ${legendHtml}
       <div class="signal-study-list">${cardsHtml}</div>
       <div class="result-actions">
-        <button class="btn btn-primary" id="btn-start-signal-quiz">シグナルクイズに挑戦</button>
         <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
       </div>
     `;
 
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
-    document.getElementById("btn-start-signal-quiz").addEventListener("click", startSignalMode);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
@@ -1265,18 +1300,15 @@
       <div class="notice-banner">
         プレー中に起きる主な反則と、それに関わる規則を<strong>あいうえお順</strong>にまとめた一覧です
         (名称で引けるように並べています)。questions.jsonの出題・解説、または規則書「公式ハンドシグナル」の
-        見出しと同じ内容を再編集したもので、新しい未確認情報は加えていません。下の「反則クイズに挑戦」から、
-        この一覧をもとにした一問一答クイズにも挑戦できます。
+        見出しと同じ内容を再編集したもので、新しい未確認情報は加えていません。
       </div>
       <div class="mistake-list">${cardsHtml}</div>
       <div class="result-actions">
-        <button class="btn btn-primary" id="btn-start-foul-quiz">反則クイズに挑戦</button>
         <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
       </div>
     `;
 
     document.getElementById("btn-back-home").addEventListener("click", renderHome);
-    document.getElementById("btn-start-foul-quiz").addEventListener("click", startFoulQuiz);
     window.scrollTo({ top: 0, behavior: "auto" });
   }
 
@@ -1555,16 +1587,22 @@
 
     APP.innerHTML = `
       <p class="section-title">試合の流れ(小学生の試合)</p>
-      <div class="notice-banner">
+      <details class="notice-banner">
+        <summary>この画面の説明(タップで開く)</summary>
         審判から見た試合1件分の進行を、<strong>担当者</strong>と<strong>覚える数値</strong>つきで時系列に並べた読み物です。
         <strong>小学生の試合</strong>(コート16m×8m・ネット2.00m・選手交代12回・21点制で2セット先取、リベロなし)に合わせてあります。
         ウォームアップやインターバルなど<strong>大会ごとに違う時間は【要設定】</strong>と表示されます。
         下の「この大会の設定」に入力すると、本文と早見表に反映されます(入力した内容はこの端末に保存されます)。
         なお、筆記試験は一般6人制の値で出題されます(数値が違う項目には注記を付けています)。
+      </details>
+
+      <div class="home-tabs flow-tabs" role="tablist">
+        <button type="button" class="home-tab" role="tab" data-ftab="view">試合の流れ</button>
+        <button type="button" class="home-tab" role="tab" data-ftab="set">大会の設定</button>
       </div>
 
-      <details class="flow-settings" id="flow-settings" open>
-        <summary>この大会の設定(タップで開閉)</summary>
+      <div class="flow-settings home-pane" id="flow-settings" data-fpane="set">
+        <p class="flow-settings-title">この大会の設定(入力すると「試合の流れ」に反映されます)</p>
         <div class="flow-settings-body">
           ${settingsHtml}
           <div class="flow-preset-bar">
@@ -1576,9 +1614,9 @@
           </div>
           <p class="flow-set-msg" id="flow-set-msg" aria-live="polite"></p>
         </div>
-      </details>
+      </div>
 
-      <div id="flow-content"></div>
+      <div id="flow-content" class="home-pane" data-fpane="view"></div>
 
       <div class="result-actions">
         <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
@@ -1590,6 +1628,15 @@
     };
     const say = msg => { document.getElementById("flow-set-msg").textContent = msg; };
     refresh();
+    const setFlowTab = tab => {
+      state.flowTab = tab;
+      document.querySelectorAll("[data-ftab]").forEach(b =>
+        b.classList.toggle("active", b.dataset.ftab === tab));
+      document.querySelectorAll("[data-fpane]").forEach(p => { p.hidden = p.dataset.fpane !== tab; });
+    };
+    document.querySelectorAll("[data-ftab]").forEach(b =>
+      b.addEventListener("click", () => { setFlowTab(b.dataset.ftab); window.scrollTo({ top: 0, behavior: "auto" }); }));
+    setFlowTab(state.flowTab === "set" ? "set" : "view");
 
     document.querySelectorAll(".flow-set-input").forEach(inp => {
       inp.addEventListener("input", () => {

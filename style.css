@@ -1011,3 +1011,12 @@ button:focus-visible{
 }
 .float-home:hover{filter:brightness(1.05);}
 .float-home.hidden{display:none;}
+
+/* ホーム/試合の流れのタブ */
+.home-tabs{display:flex; gap:8px; margin:0 0 16px; position:sticky; top:0; z-index:5; padding:6px 0; background:var(--navy-deep);}
+.home-tab{flex:1; padding:11px 8px; border-radius:10px; border:1px solid rgba(255,255,255,.3); background:transparent; color:var(--line); font:inherit; font-weight:700; font-size:15px; cursor:pointer; line-height:1.3;}
+.home-tab small{display:block; font-weight:400; font-size:11px; opacity:.8; margin-top:2px;}
+.home-tab.active{background:var(--volley-yellow); color:var(--navy-deep); border-color:var(--volley-yellow);}
+.home-pane[hidden]{display:none;}
+.flow-settings-title{margin:0 0 10px; font-weight:700;}
+.notice-banner summary{cursor:pointer; font-weight:700; margin-bottom:6px;}
