@@ -1490,35 +1490,72 @@
     });
   }
 
+  function flowStepHtml(st, vals) {
+    const keyChip = st.key
+      ? `<span class="flow-key">${flowFill(st.key, vals)}</span>`
+      : "";
+    const note = st.note
+      ? `<p class="flow-note">${flowFill(st.note, vals)}</p>`
+      : "";
+    const whistle = st.whistle
+      ? `<p class="flow-whistle"><span class="flow-whistle-tag">笛</span>${flowFill(st.whistle, vals)}</p>`
+      : "";
+    const proc = (st.procedure && st.procedure.length)
+      ? `<ol class="flow-proc">${st.procedure.map(t => `<li>${flowFill(t, vals)}</li>`).join("")}</ol>`
+      : "";
+    const detail = st.detail
+      ? `<p class="flow-detail">${flowFill(st.detail, vals)}</p>`
+      : "";
+    return `<li class="flow-step">
+      <div class="flow-step-head">
+        <p class="flow-step-title">${flowFill(st.title, vals)}</p>
+        ${keyChip}
+      </div>
+      <p class="flow-who">${escapeHtml(st.who)}</p>
+      ${whistle}
+      ${detail}
+      ${proc}
+      ${note}
+    </li>`;
+  }
+
+  // 試合前の公式練習タブ: トス→公式ウォームアップ→整列・あいさつ→笛の早見を
+  // 時系列で並べ、この大会の設定値(招集・練習・あいさつ)を先頭に出す。
+  function flowPracticeHtml(vals) {
+    const ids = ["s103", "s104", "s108"];
+    const steps = ids.map(id => {
+      for (const ph of FLOW.phases) {
+        const st = (ph.steps || []).find(x => x.id === id);
+        if (st) return flowStepHtml(st, vals);
+      }
+      return "";
+    }).join("");
+    const settingIds = ["callTime", "warmup", "greeting"];
+    const nums = settingIds.filter(id => (FLOW.settings || []).some(x => x.id === id)).map(id => {
+      const set = FLOW.settings.find(x => x.id === id);
+      return `<li><span class="flow-key">${flowFill("{" + id + "}", vals)}</span>${escapeHtml(set.label)}</li>`;
+    }).join("");
+    const wh = (FLOW.whistles || []).find(w => /公式練習/.test(w.moment));
+    const whHtml = wh ? `
+      <p class="section-title">この場面の笛</p>
+      <ul class="flow-wh-list"><li class="flow-wh-item">
+        <p class="flow-wh-moment"><span class="flow-whistle-tag">笛</span>${flowFill(wh.moment, vals)}</p>
+        <p class="flow-who">${flowFill(wh.who, vals)}</p>
+        <p class="flow-detail">${flowFill(wh.how, vals)}</p>
+      </li></ul>` : "";
+    return `
+      <p class="section-title">この大会の公式練習まわりの設定</p>
+      <ul class="flow-numbers">${nums}</ul>
+      <p class="flow-phase-lead">未設定の項目は「大会の設定」タブで入力できます。</p>
+      <p class="section-title">トス → 公式練習 → 整列・あいさつ</p>
+      <ol class="flow-steps">${steps}</ol>
+      ${whHtml}`;
+  }
+
   function flowContentHtml(vals) {
     const phasesHtml = FLOW.phases.map((ph, i) => {
       const steps = (ph.steps || []).map(st => {
-        const keyChip = st.key
-          ? `<span class="flow-key">${flowFill(st.key, vals)}</span>`
-          : "";
-        const note = st.note
-          ? `<p class="flow-note">${flowFill(st.note, vals)}</p>`
-          : "";
-        const whistle = st.whistle
-          ? `<p class="flow-whistle"><span class="flow-whistle-tag">笛</span>${flowFill(st.whistle, vals)}</p>`
-          : "";
-        const proc = (st.procedure && st.procedure.length)
-          ? `<ol class="flow-proc">${st.procedure.map(t => `<li>${flowFill(t, vals)}</li>`).join("")}</ol>`
-          : "";
-        const detail = st.detail
-          ? `<p class="flow-detail">${flowFill(st.detail, vals)}</p>`
-          : "";
-        return `<li class="flow-step">
-          <div class="flow-step-head">
-            <p class="flow-step-title">${flowFill(st.title, vals)}</p>
-            ${keyChip}
-          </div>
-          <p class="flow-who">${escapeHtml(st.who)}</p>
-          ${whistle}
-          ${detail}
-          ${proc}
-          ${note}
-        </li>`;
+        return flowStepHtml(st, vals);
       }).join("");
 
       return `<section class="flow-phase">
@@ -1598,6 +1635,7 @@
 
       <div class="home-tabs flow-tabs" role="tablist">
         <button type="button" class="home-tab" role="tab" data-ftab="view">試合の流れ</button>
+        <button type="button" class="home-tab" role="tab" data-ftab="warmup">試合前の公式練習</button>
         <button type="button" class="home-tab" role="tab" data-ftab="set">大会の設定</button>
       </div>
 
@@ -1617,6 +1655,7 @@
       </div>
 
       <div id="flow-content" class="home-pane" data-fpane="view"></div>
+      <div id="flow-warmup" class="home-pane" data-fpane="warmup"></div>
 
       <div class="result-actions">
         <button class="btn btn-ghost" id="btn-back-home">ホームへ戻る</button>
@@ -1625,6 +1664,7 @@
 
     const refresh = () => {
       document.getElementById("flow-content").innerHTML = flowContentHtml(flowValues(store));
+      document.getElementById("flow-warmup").innerHTML = flowPracticeHtml(flowValues(store));
     };
     const say = msg => { document.getElementById("flow-set-msg").textContent = msg; };
     refresh();
@@ -1636,7 +1676,7 @@
     };
     document.querySelectorAll("[data-ftab]").forEach(b =>
       b.addEventListener("click", () => { setFlowTab(b.dataset.ftab); window.scrollTo({ top: 0, behavior: "auto" }); }));
-    setFlowTab(state.flowTab === "set" ? "set" : "view");
+    setFlowTab(state.flowTab === "set" || state.flowTab === "warmup" ? state.flowTab : "view");
 
     document.querySelectorAll(".flow-set-input").forEach(inp => {
       inp.addEventListener("input", () => {
