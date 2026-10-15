@@ -1828,21 +1828,42 @@
     btn.type = "button";
     btn.id = "btn-float-home";
     btn.className = "float-home hidden";
-    btn.textContent = "ホームへ戻る";
+    btn.textContent = "← 戻る(ホームへ)";
     btn.addEventListener("click", () => {
       stopTimer();
       renderHome();
     });
     document.body.appendChild(btn);
 
+    // スマホの「戻る」操作やブラウザの戻るでも一つ前(ホーム)へ戻れるように、
+    // ホーム→各画面の移動をブラウザ履歴に積む。履歴が積まれたままホームへ
+    // 戻ると戻る操作が1回余計に必要になるため、その場合は履歴も1つ戻す。
     let screen = state.screen;
+    let ignorePop = false;
     Object.defineProperty(state, "screen", {
       enumerable: true,
       get() { return screen; },
       set(v) {
+        const prev = screen;
         screen = v;
         btn.classList.toggle("hidden", v === "home" || v === "loading");
+        try {
+          const inSub = !!(history.state && history.state.sub);
+          if (v !== "home" && v !== "loading" && !inSub) {
+            history.pushState({ sub: true }, "");
+          } else if (v === "home" && prev !== "home" && inSub) {
+            ignorePop = true;
+            history.back();
+          }
+        } catch (e) { /* 履歴操作に失敗しても画面は動かす */ }
       },
+    });
+    window.addEventListener("popstate", () => {
+      if (ignorePop) { ignorePop = false; return; }
+      if (screen !== "home" && screen !== "loading") {
+        stopTimer();
+        renderHome();
+      }
     });
   }
 
